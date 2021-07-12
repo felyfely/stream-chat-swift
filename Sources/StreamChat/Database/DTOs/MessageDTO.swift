@@ -363,6 +363,9 @@ extension NSManagedObjectContext: MessageDatabaseSession {
         }
         
         let dto = MessageDTO.loadOrCreate(id: payload.id, context: self)
+        print("##-DB-LOADED: message: \(dto.text), quoted: \(dto.quotedMessage?.text)")
+        
+        print("##-PAYLOAD: Save called for message: \(payload.text), quoted message text : \(payload.quotedMessage?.text)")
 
         dto.text = payload.text
         dto.createdAt = payload.createdAt
@@ -452,6 +455,8 @@ extension NSManagedObjectContext: MessageDatabaseSession {
             dto.pinnedBy = try saveUser(payload: pinnedBy)
         }
         
+        print("##-END: message: \(dto.text), quoted: \(dto.quotedMessage?.text)")
+
         return dto
     }
     
