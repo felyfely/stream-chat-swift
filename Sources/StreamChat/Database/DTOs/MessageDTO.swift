@@ -386,7 +386,13 @@ extension NSManagedObjectContext: MessageDatabaseSession {
             dto.pinnedBy = try saveUser(payload: pinnedByUser)
         }
 
-        dto.quotedMessage = try payload.quotedMessage.flatMap { try saveMessage(payload: $0, for: cid) }
+        if let quotedMessage = payload.quotedMessage {
+            dto.quotedMessage = try saveMessage(payload: quotedMessage, for: cid)
+        } else if dto.quotedMessage?.id == payload.quotedMessageId {
+            print("##-PAYLOAD: Quoted message not included but IDs match")
+        } else {
+            dto.quotedMessage = nil
+        }
 
         let user = try saveUser(payload: payload.user)
         dto.user = user
