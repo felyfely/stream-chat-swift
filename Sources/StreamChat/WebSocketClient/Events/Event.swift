@@ -45,3 +45,21 @@ protocol ReactionEvent: MessageSpecificEvent {
 protocol CurrentUserEvent: EventWithPayload {
     var currentUserId: UserId { get }
 }
+
+public protocol CustomEvent: Event, Codable {}
+
+struct AnyCustomEvent: EventWithPayload {
+    let payload: Any
+    
+    init(payload: Data) {
+        self.payload = payload
+    }
+    
+    func event<T: CustomEvent>(ofType: T.Type) -> T? {
+        guard let data = payload as? Data else {
+            return nil
+        }
+        
+        return try? JSONDecoder.default.decode(T.self, from: data)
+    }
+}

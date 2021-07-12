@@ -7,8 +7,12 @@ import Foundation
 /// A lightweight object for decoding incoming events.
 struct EventDecoder<ExtraData: ExtraDataTypes> {
     func decode(from data: Data) throws -> Event {
-        let response = try JSONDecoder.default.decode(EventPayload<ExtraData>.self, from: data)
-        return try response.event()
+        do {
+            let response = try JSONDecoder.default.decode(EventPayload<ExtraData>.self, from: data)
+            return try response.event()
+        } catch {
+            return AnyCustomEvent(payload: data)
+        }
     }
 }
 

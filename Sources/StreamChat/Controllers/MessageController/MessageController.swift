@@ -117,6 +117,9 @@ public class _ChatMessageController<ExtraData: ExtraDataTypes>: DataController, 
             }
         }
     
+    /// The observer used to listen to message related events.
+    private var messageEventsObserver: EventObserver?
+    
     /// The observer used to listen replies updates.
     /// It will be reset on `listOrdering` changes.
     @Cached private var repliesObserver: ListDatabaseObserver<_ChatMessage<ExtraData>, MessageDTO>?
@@ -140,6 +143,7 @@ public class _ChatMessageController<ExtraData: ExtraDataTypes>: DataController, 
         self.environment = environment
         super.init()
         
+        messageEventsObserver = createMessageEventsObserver()
         setRepliesObserver()
     }
 
@@ -466,6 +470,31 @@ private extension _ChatMessageController {
         return observer
     }
     
+    func createMessageEventsObserver() -> EventObserver? {
+        client.webSocketClient.map {
+            .init(
+                notificationCenter: $0.eventNotificationCenter,
+                transform: { $0 as? MessageSpecificEvent },
+                callback: { [unowned self] event in
+                    guard event.messageId == self.messageId else { return }
+                    
+                    self.delegateCallback { delegate in
+                        switch event {
+                        case let event as MessageNewEvent:
+                            delegate.messageController(self, didReceiveEvent: event)
+                        case let event as MessageUpdatedEvent:
+                            delegate.messageController(self, didReceiveEvent: event)
+                        case let event as MessageDeletedEvent:
+                            delegate.messageController(self, didReceiveEvent: event)
+                        default:
+                            break
+                        }
+                    }
+                }
+            )
+        }
+    }
+    
     func setRepliesObserver() {
         _repliesObserver.computeValue = { [unowned self] in
             let sortAscending = self.listOrdering == .topToBottom ? false : true
@@ -498,12 +527,42 @@ public protocol ChatMessageControllerDelegate: DataControllerStateDelegate {
     
     /// The controller observed changes in the replies of the observed `ChatMessage`.
     func messageController(_ controller: ChatMessageController, didChangeReplies changes: [ListChange<ChatMessage>])
+    
+    func messageController(
+        _ controller: ChatMessageController,
+        didReceiveEvent event: MessageNewEvent
+    )
+    
+    func messageController(
+        _ controller: ChatMessageController,
+        didReceiveEvent event: MessageUpdatedEvent
+    )
+    
+    func messageController(
+        _ controller: ChatMessageController,
+        didReceiveEvent event: MessageDeletedEvent
+    )
 }
 
 public extension ChatMessageControllerDelegate {
     func messageController(_ controller: ChatMessageController, didChangeMessage change: EntityChange<ChatMessage>) {}
     
     func messageController(_ controller: ChatMessageController, didChangeReplies changes: [ListChange<ChatMessage>]) {}
+    
+    func messageController(
+        _ controller: ChatMessageController,
+        didReceiveEvent event: MessageNewEvent
+    ) {}
+    
+    func messageController(
+        _ controller: ChatMessageController,
+        didReceiveEvent event: MessageUpdatedEvent
+    ) {}
+    
+    func messageController(
+        _ controller: ChatMessageController,
+        didReceiveEvent event: MessageDeletedEvent
+    ) {}
 }
 
 /// `_ChatMessageControllerDelegate` uses this protocol to communicate changes to its delegate.
@@ -525,6 +584,21 @@ public protocol _ChatMessageControllerDelegate: DataControllerStateDelegate {
         _ controller: _ChatMessageController<ExtraData>,
         didChangeReplies changes: [ListChange<_ChatMessage<ExtraData>>]
     )
+
+    func messageController(
+        _ controller: _ChatMessageController<ExtraData>,
+        didReceiveEvent event: MessageNewEvent
+    )
+    
+    func messageController(
+        _ controller: _ChatMessageController<ExtraData>,
+        didReceiveEvent event: MessageUpdatedEvent
+    )
+    
+    func messageController(
+        _ controller: _ChatMessageController<ExtraData>,
+        didReceiveEvent event: MessageDeletedEvent
+    )
 }
 
 public extension _ChatMessageControllerDelegate {
@@ -537,6 +611,21 @@ public extension _ChatMessageControllerDelegate {
         _ controller: _ChatMessageController<ExtraData>,
         didChangeReplies changes: [ListChange<_ChatMessage<ExtraData>>]
     ) {}
+    
+    func messageController(
+        _ controller: _ChatMessageController<ExtraData>,
+        didReceiveEvent event: MessageNewEvent
+    ) {}
+    
+    func messageController(
+        _ controller: _ChatMessageController<ExtraData>,
+        didReceiveEvent event: MessageUpdatedEvent
+    ) {}
+    
+    func messageController(
+        _ controller: _ChatMessageController<ExtraData>,
+        didReceiveEvent event: MessageDeletedEvent
+    ) {}
 }
 
 final class AnyChatMessageControllerDelegate<ExtraData: ExtraDataTypes>: _ChatMessageControllerDelegate {
@@ -546,6 +635,9 @@ final class AnyChatMessageControllerDelegate<ExtraData: ExtraDataTypes>: _ChatMe
         -> Void
     private var _messageControllerDidChangeReplies: (_ChatMessageController<ExtraData>, [ListChange<_ChatMessage<ExtraData>>])
         -> Void
+    private let _messageControllerDidReceiveMessageNewEvent: (_ChatMessageController<ExtraData>, MessageNewEvent) -> Void
+    private let _messageControllerDidReceiveMessageUpdatedEvent: (_ChatMessageController<ExtraData>, MessageUpdatedEvent) -> Void
+    private let _messageControllerDidReceiveMessageDeletedEvent: (_ChatMessageController<ExtraData>, MessageDeletedEvent) -> Void
     
     init(
         wrappedDelegate: AnyObject?,
@@ -553,12 +645,18 @@ final class AnyChatMessageControllerDelegate<ExtraData: ExtraDataTypes>: _ChatMe
         messageControllerDidChangeMessage: @escaping (_ChatMessageController<ExtraData>, EntityChange<_ChatMessage<ExtraData>>)
             -> Void,
         messageControllerDidChangeReplies: @escaping (_ChatMessageController<ExtraData>, [ListChange<_ChatMessage<ExtraData>>])
-            -> Void
+            -> Void,
+        messageControllerDidReceiveMessageNewEvent: @escaping (_ChatMessageController<ExtraData>, MessageNewEvent) -> Void,
+        messageControllerDidReceiveMessageUpdatedEvent: @escaping (_ChatMessageController<ExtraData>, MessageUpdatedEvent) -> Void,
+        messageControllerDidReceiveMessageDeletedEvent: @escaping (_ChatMessageController<ExtraData>, MessageDeletedEvent) -> Void
     ) {
         self.wrappedDelegate = wrappedDelegate
         _controllerDidChangeState = controllerDidChangeState
         _messageControllerDidChangeMessage = messageControllerDidChangeMessage
         _messageControllerDidChangeReplies = messageControllerDidChangeReplies
+        _messageControllerDidReceiveMessageNewEvent = messageControllerDidReceiveMessageNewEvent
+        _messageControllerDidReceiveMessageUpdatedEvent = messageControllerDidReceiveMessageUpdatedEvent
+        _messageControllerDidReceiveMessageDeletedEvent = messageControllerDidReceiveMessageDeletedEvent
     }
 
     func controller(_ controller: DataController, didChangeState state: DataController.State) {
@@ -578,6 +676,18 @@ final class AnyChatMessageControllerDelegate<ExtraData: ExtraDataTypes>: _ChatMe
     ) {
         _messageControllerDidChangeReplies(controller, changes)
     }
+    
+    func messageController(_ controller: _ChatMessageController<ExtraData>, didReceiveEvent event: MessageNewEvent) {
+        _messageControllerDidReceiveMessageNewEvent(controller, event)
+    }
+    
+    func messageController(_ controller: _ChatMessageController<ExtraData>, didReceiveEvent event: MessageUpdatedEvent) {
+        _messageControllerDidReceiveMessageUpdatedEvent(controller, event)
+    }
+    
+    func messageController(_ controller: _ChatMessageController<ExtraData>, didReceiveEvent event: MessageDeletedEvent) {
+        _messageControllerDidReceiveMessageDeletedEvent(controller, event)
+    }
 }
 
 extension AnyChatMessageControllerDelegate {
@@ -586,7 +696,16 @@ extension AnyChatMessageControllerDelegate {
             wrappedDelegate: delegate,
             controllerDidChangeState: { [weak delegate] in delegate?.controller($0, didChangeState: $1) },
             messageControllerDidChangeMessage: { [weak delegate] in delegate?.messageController($0, didChangeMessage: $1) },
-            messageControllerDidChangeReplies: { [weak delegate] in delegate?.messageController($0, didChangeReplies: $1) }
+            messageControllerDidChangeReplies: { [weak delegate] in delegate?.messageController($0, didChangeReplies: $1) },
+            messageControllerDidReceiveMessageNewEvent: { [weak delegate] in
+                delegate?.messageController($0, didReceiveEvent: $1)
+            },
+            messageControllerDidReceiveMessageUpdatedEvent: { [weak delegate] in
+                delegate?.messageController($0, didReceiveEvent: $1)
+            },
+            messageControllerDidReceiveMessageDeletedEvent: { [weak delegate] in
+                delegate?.messageController($0, didReceiveEvent: $1)
+            }
         )
     }
 }
@@ -597,7 +716,16 @@ extension AnyChatMessageControllerDelegate where ExtraData == NoExtraData {
             wrappedDelegate: delegate,
             controllerDidChangeState: { [weak delegate] in delegate?.controller($0, didChangeState: $1) },
             messageControllerDidChangeMessage: { [weak delegate] in delegate?.messageController($0, didChangeMessage: $1) },
-            messageControllerDidChangeReplies: { [weak delegate] in delegate?.messageController($0, didChangeReplies: $1) }
+            messageControllerDidChangeReplies: { [weak delegate] in delegate?.messageController($0, didChangeReplies: $1) },
+            messageControllerDidReceiveMessageNewEvent: { [weak delegate] in
+                delegate?.messageController($0, didReceiveEvent: $1)
+            },
+            messageControllerDidReceiveMessageUpdatedEvent: { [weak delegate] in
+                delegate?.messageController($0, didReceiveEvent: $1)
+            },
+            messageControllerDidReceiveMessageDeletedEvent: { [weak delegate] in
+                delegate?.messageController($0, didReceiveEvent: $1)
+            }
         )
     }
 }
