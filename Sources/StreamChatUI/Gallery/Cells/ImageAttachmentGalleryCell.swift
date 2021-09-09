@@ -6,10 +6,7 @@ import StreamChat
 import UIKit
 
 /// `UICollectionViewCell` for an image item.
-public typealias ImageAttachmentGalleryCell = _ImageAttachmentGalleryCell<NoExtraData>
-
-/// `UICollectionViewCell` for an image item.
-open class _ImageAttachmentGalleryCell<ExtraData: ExtraDataTypes>: _GalleryCollectionViewCell<ExtraData> {
+open class ImageAttachmentGalleryCell: GalleryCollectionViewCell {
     open class var reuseId: String { String(describing: self) }
     
     /// A view that displays an image.
@@ -36,10 +33,10 @@ open class _ImageAttachmentGalleryCell<ExtraData: ExtraDataTypes>: _GalleryColle
         let imageAttachment = content?.attachment(payloadType: ImageAttachmentPayload.self)
         
         if let url = imageAttachment?.imageURL {
-            imageView.loadImage(
-                from: url,
-                resize: false,
-                components: components
+            components.imageLoader.loadImage(
+                into: imageView,
+                url: url,
+                imageCDN: components.imageCDN
             )
         } else {
             imageView.image = nil

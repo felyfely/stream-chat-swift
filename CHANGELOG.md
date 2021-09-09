@@ -3,24 +3,187 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 # Upcoming
 
+### 🔄 Changed
+
+# [4.0.0-RC.1](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-RC.1)
+_September 09, 2021_
+
+### 🐞 Fixed
+ - Fix channel list showing outdated data, and channels not showing any messages after reconnection [#1435](https://github.com/GetStream/stream-chat-swift/issues/1435)
+
+# [4.0.0-RC](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-RC)
+_September 03, 2021_
+
+### ⚠️ Breaking Changes from `4.0-beta.11`
+- JSON Encoding/Decoding for both Network and Database date formatting changed to RFC3339 formats [#1403](https://github.com/GetStream/stream-chat-swift/pull/1403)
+- `ChatMessage.threadParticipants` is now an Array instead of Set [#1398](https://github.com/GetStream/stream-chat-swift/pull/1398)
+- Introduces `ChatChannelVC` and removes responsibilities of `ChatMessageListVC`. The latter now is only responsible to render the message list layout, the data is provided by `ChatChannelVC` or `ChatThreadVC`. [#1314](https://github.com/GetStream/stream-chat-swift/pull/1314)
+- Replaces `ChatMessageActionsVC.Delegate` with `ChatMessageActionsVCDelegate` [#1314](https://github.com/GetStream/stream-chat-swift/pull/1314)
+- Renames `ChatChannelListRouter.showMessageList()` -> `showChannel()` [#1314](https://github.com/GetStream/stream-chat-swift/pull/1314)
+- Removal of `ComposerVCDelegate` [#1314](https://github.com/GetStream/stream-chat-swift/pull/1314)
+- Replaces `ChatMessageListKeyboardObserver` with `ComposerKeyboardHandler` [#1314](https://github.com/GetStream/stream-chat-swift/pull/1314)
+
+#### Understanding `ChatChannelVC` vs `ChatTheadVC` vs `ChatMessageListVC`
+- `ChatChannelVC`:
+    - `ChatChannelHeaderView`
+    - `ChatMessageListVC`
+    - `ComposerVC`
+   
+- `ChatThreadVC`:
+    - `ChatThreadHeaderView`
+    - `ChatMessageListVC`
+    - `ComposerVC`
+
+A new `ChatChannelVC` is introduced that represents the old `ChatMessageListVC`, which was responsible to display the messages from a channel. The `ChatThreadVC` remains the same and it is responsible for displaying the replies in a thread, but now instead of duplicating the implementation from the channel, both use the `ChatMessageListVC` and configure it for their needs. For this to be possible the `ChatMessageListVC` has now a `ChatMessageListVCDataSource` and `ChatMessageListVCDelegate`. Both `ChatChannelVC` and `ChatThreadVC` implement the `ChatMessageListVCDataSource` and `ChatMessageListVCDelegate`.
+
+### 🔄 Changed
+- Nuke dependency was updated to v10 [#1405](https://github.com/GetStream/stream-chat-swift/pull/1405)
+
+### ✅ Added
+- For non-DM channels, the avatar is now shown as a combination of the avatars of the last active members of the channel [#1344](https://github.com/GetStream/stream-chat-swift/pull/1344)
+- New DateFormatter methods `rfc3339Date` and `rfc3339DateString` [#1403](https://github.com/GetStream/stream-chat-swift/pull/1403)
+- Add a new `isMentionsEnabled` flag to make it easier to disable the user mentions in the ComposerVC [#1416](https://github.com/GetStream/stream-chat-swift/pull/1416)
+- Use remote config to disable mute actions [#1418](https://github.com/GetStream/stream-chat-swift/pull/1418)
+- Use remote config to disable thread info from message options [#1418](https://github.com/GetStream/stream-chat-swift/pull/1418)
+- Provide different Objc name for InputTextView [#1420](https://github.com/GetStream/stream-chat-swift/pull/1421)
+- Add message search support through `MessageSearchController` [#1426](https://github.com/GetStream/stream-chat-swift/pull/1426)
+
+### 🐞 Fixed
+- Fix incorrect RawJSON number handling, the `.integer` case is no longer supported and is replaced by `.number` [#1375](https://github.com/GetStream/stream-chat-swift/pull/1375)
+- Fix message list and thread index out of range issue on `tableView(_:cellForRowAt:)` [#1373](https://github.com/GetStream/stream-chat-swift/pull/1373)
+- Fix crash when dismissing gallery images [#1383](https://github.com/GetStream/stream-chat-swift/pull/1383)
+- Improve pagination efficiency [#1381](https://github.com/GetStream/stream-chat-swift/pull/1381)
+- Fix user mention suggestions not showing all members [#1390](https://github.com/GetStream/stream-chat-swift/pull/1381)
+- Fix thread avatar view not displaying latest reply author avatar [#1398](https://github.com/GetStream/stream-chat-swift/pull/1398)
+- Fix crash on incorrect date string parsing [#1403](https://github.com/GetStream/stream-chat-swift/pull/1403)
+- Fix threads not showing all the responses if there were responses that were also sent to the channel [#1413](https://github.com/GetStream/stream-chat-swift/pull/1413)
+- Fix crash when accessing `ChatMessage.attachmentCounts` on <iOS13 with in-memory storage turned ON
+- Fix `isCommandsEnabled` not disabling the typing commands [#1416](https://github.com/GetStream/stream-chat-swift/pull/1416)
+- Fix mention suggester now supports `options.minimumRequiredCharacters` equal to 0 and sorts results with same score consistently
+- Fix filters with wrong Date encoding strategy [#1420](https://github.com/GetStream/stream-chat-swift/pull/1420)
+- Fix message height is now calculated correctly when a message is updated [#1424](https://github.com/GetStream/stream-chat-swift/pull/1424)
+- Fix `ChatMessageReactionData.init` not public [#1425](https://github.com/GetStream/stream-chat-swift/pull/1425)
+
+# [4.0.0-beta.11](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-beta.11)
+_August 13, 2021_
+
+### 🐞 Fixed
+- Fix jumps when presenting message popup actions in a modal [#1361](https://github.com/GetStream/stream-chat-swift/issues/1361)
+- Fix custom Channel Types not allowing uppercase letters [#1361](https://github.com/GetStream/stream-chat-swift/issues/1361)
+- Fix `ChatMessageGalleryView.ImagePreview` not compiling in Obj-c [#1363](https://github.com/GetStream/stream-chat-swift/pull/1363)
+- Fix force unwrap crashes on unknown user roles cases [#1365](https://github.com/GetStream/stream-chat-swift/pull/1365)
+- Fix "last seen at" representation to use other units other than minutes [#1368](https://github.com/GetStream/stream-chat-swift/pull/1368)
+- Fix message list dismissing on a modal when scrolling [#1364](https://github.com/GetStream/stream-chat-swift/pull/1364)
+- Fix crash on channel delete event [#1408](https://github.com/GetStream/stream-chat-swift/pull/1408)
+
+# [4.0.0-beta.10](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-beta.10)
+_August 11, 2021_
+
+### ✅ Added
+- New `ChannelListSortingKey`s `unreadCount` and `hasUnread` [#1348](https://github.com/GetStream/stream-chat-swift/issues/1348)
+- Added `GalleryAttachmentViewInjector.galleryViewAspectRatio` to control the aspect ratio of a gallery inside a message cell [#1300](https://github.com/GetStream/stream-chat-swift/pull/1300)
+
+### 🔄 Changed
+- `ChatMessageReactionsVC.toggleReaction` is now `open` [#1348](https://github.com/GetStream/stream-chat-swift/issues/1348)
+- User mentions now fetch suggestions from current channel instead of doing a user search query. Set `Components.mentionAllAppUsers` to true if you want to perform user search instead [#1357](https://github.com/GetStream/stream-chat-swift/pull/1357)
+
+### 🐞 Fixed
+- Fix `ChannelListController.synchronize` completion closure not being called when the client is connected [#1353](https://github.com/GetStream/stream-chat-swift/issues/1353)
+- Selecting suggestions from Composer did not work correctly [#1352](https://github.com/GetStream/stream-chat-swift/pull/1352)
+- Fixed race condition on `ChatMessageListVC` and `ChatThreadVC` that caused `UITableView` crashes [#1347](https://github.com/GetStream/stream-chat-swift/pull/1347)
+- Fixed an issue for `ChatThreadVC` opened from a deeplink when new replies are only added to the chat, but not to the replies thread [#1354](https://github.com/GetStream/stream-chat-swift/pull/1354)
+
+
+# [4.0.0-beta.9](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-beta.9)
+_August 05, 2021_
+
 ### ⚠️ Breaking Changes from `4.0-beta.8`
+- Extra data is now stored on a hashmap and not using the `ExtraData` generic system
 - `ChatMessageLayoutOptionsResolver.optionsForMessage` has a new parameter: `appearance` [#1304](https://github.com/GetStream/stream-chat-swift/issues/1304)
 - Renamed `Components.navigationTitleView` -> `Components.titleContainerView` [#1294](https://github.com/GetStream/stream-chat-swift/pull/1294)
+
+#### New Extra Data Type
+
+The new `4.0` release changes how `extraData` is stored and uses a simpler hashmap-based solution. This approach does not require creating type aliases for all generic classes such as `ChatClient`.
+
+Example:
+
+```swift
+client.connectUser(
+    userInfo: .init(
+        id: userCredentials.id,
+        extraData: ["country": .string("NL")]
+    ),
+    token: token
+)
+```
+
+`Message`, `User`, `Channel`, `MessageReaction` models now store `extraData` in a `[String: RawJSON]` container. 
+
+```swift
+let extraData:[String: RawJSON] = .dictionary([
+    "name": .string(testPayload.name),
+    "number": .integer(testPayload.number)
+])
+```
+
+#### Upgrading from ExtraData
+
+If you are using `ExtraData` from `v3` or before `4.0-beta.8` the steps needed to upgrade are the following:
+
+- Remove all type aliases (`typealias ChatUser = _ChatUser<CustomExtraDataTypes.User>`)
+- Replace all generic types from `StreamChat` and `StreamChatUI` classes (`__CurrentChatUserController<T>` -> `CurrentChatUserController`) with the non-generic version
+- Remove the extra data structs and either use `extraData` directly or (recommended) extend the models 
+- Update your views to read your custom fields from the `extraData` field
+
+Before:
+
+```swift
+struct Birthland: UserExtraData {
+    static var defaultValue = Birthland(birthLand: "")
+    let birthLand: String
+}
+```
+
+After:
+
+```swift
+extension ChatUser {
+    static let birthLandFieldName = "birthLand"
+    var birthLand: String {
+        guard let v = extraData[ChatUser.birthLandFieldName] else {
+            return ""
+        }
+        guard case let .string(birthLand) = v else {
+            return ""
+        }
+        return birthLand
+    }
+}
+```
 
 ### ✅ Added
 - Added `ChatChannelHeaderView` UI Component [#1294](https://github.com/GetStream/stream-chat-swift/pull/1294)
 - Added `ChatThreadHeaderView` UI Component [#1294](https://github.com/GetStream/stream-chat-swift/pull/1294)
 - Added custom channel events support [#1309](https://github.com/GetStream/stream-chat-swift/pull/1309)
 - Added `ChatMessageAudioAttachment`, you can access them via `ChatMessage.audioAttachments`. There's no UI support as of now, it's in our Roadmap. [#1322](https://github.com/GetStream/stream-chat-swift/issues/1322)
+- Added message ordering parameter to all `ChannelController` initializers. If you use `ChatChannelListRouter` it can be done by overriding a `showMessageList` method on it. [#1338](https://github.com/GetStream/stream-chat-swift/pull/1338)
+- Added support for custom localization of components in framework [#1330](https://github.com/GetStream/stream-chat-swift/pull/1330)
 
 ### 🐞 Fixed
 - Fix message list header displaying incorrectly the online status for the current user instead of the other one [#1294](https://github.com/GetStream/stream-chat-swift/pull/1294)
 - Fix deleted last message's appearance on channels list [#1318](https://github.com/GetStream/stream-chat-swift/pull/1318)
 - Fix reaction bubbles sometimes not being aligned to bubble on short incoming message [#1320](https://github.com/GetStream/stream-chat-swift/pull/1320)
 - Fix hiding already hidden channels not working [#1327](https://github.com/GetStream/stream-chat-swift/issues/1327)
+- Fix compilation for Xcode 13 beta 3 where SDK could not compile because of unvailability of `UIApplication.shared` [#1333](https://github.com/GetStream/stream-chat-swift/pull/1333)
+- Fix member removed from a Channel is still present is MemberListController.members [#1323](https://github.com/GetStream/stream-chat-swift/issues/1323)
+- Fix composer input field height for long text [#1335](https://github.com/GetStream/stream-chat-swift/issues/1335)
+- Fix creating direct messaging channels creates CoreData misuse [#1337](https://github.com/GetStream/stream-chat-swift/issues/1337)
 
 ### 🔄 Changed
 - `ContainerStackView` doesn't `assert` when trying to remove a subview, these operations are now no-op [#1328](https://github.com/GetStream/stream-chat-swift/issues/1328)
+- `ChatClientConfig`'s `isLocalStorageEnabled`'s default value is now `false`
+- `/sync` endpoint calls optimized for a setup when local caching is disabled i.e. `isLocalStorageEnabled` is set to false.
 
 # [4.0.0-beta.8](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-beta.8)
 _July 21, 2021_
@@ -29,7 +192,6 @@ _July 21, 2021_
 - `urlRequest(forImage url:)` added to `ImageCDN` protocol, this can be used to inject custom HTTP headers into image loading requests [#1291](https://github.com/GetStream/stream-chat-swift/issues/1291)
 - Functionality that allows [inviting](https://getstream.io/chat/docs/react/channel_invites/?language=swift) users to channels with subsequent acceptance or rejection on their part [#1276](https://github.com/GetStream/stream-chat-swift/pull/1276)
 - `EventsController` which exposes event observing API [#1266](https://github.com/GetStream/stream-chat-swift/pull/1266)
-- A back off mechanism for cases when a token expires and the new reobtained one is also expired, so there is no endless loop. [#1305](https://github.com/GetStream/stream-chat-swift/pull/1305)
 
 ### 🐞 Fixed
 - Fix an issue where member role sent from backend was not recognized by the SDK [#1288](https://github.com/GetStream/stream-chat-swift/pull/1288)

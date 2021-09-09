@@ -27,10 +27,7 @@ public protocol ChatMessageContentViewDelegate: AnyObject {
 }
 
 /// A view that displays the message content.
-public typealias ChatMessageContentView = _ChatMessageContentView<NoExtraData>
-
-/// A view that displays the message content.
-open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvider {
+open class ChatMessageContentView: _View, ThemeProvider {
     /// The current layout options of the view.
     /// When this value is set the subviews are instantiated and laid out just once based on
     /// the received options.
@@ -45,7 +42,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
     public weak var delegate: ChatMessageContentViewDelegate?
 
     /// The message this view displays.
-    open var content: _ChatMessage<ExtraData>? {
+    open var content: ChatMessage? {
         didSet { updateContentIfNeeded() }
     }
 
@@ -64,7 +61,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
 
     /// Shows the bubble around message content.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.bubble`.
-    public private(set) var bubbleView: _ChatMessageBubbleView<ExtraData>?
+    public private(set) var bubbleView: ChatMessageBubbleView?
 
     /// Shows message author avatar.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.author`.
@@ -102,11 +99,11 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
 
     /// Shows the message quoted by the message this view displays.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.quotedMessage`.
-    public private(set) var quotedMessageView: _QuotedChatMessageView<ExtraData>?
+    public private(set) var quotedMessageView: QuotedChatMessageView?
 
     /// Shows message reactions.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.reactions`.
-    public private(set) var reactionsView: _ChatMessageReactionsView<ExtraData>?
+    public private(set) var reactionsView: ChatMessageReactionsView?
 
     /// Shows the bubble around message reactions.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.reactions`.
@@ -125,7 +122,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
     public private(set) var threadArrowView: ChatThreadArrowView?
 
     /// An object responsible for injecting the views needed to display the attachments content.
-    public private(set) var attachmentViewInjector: _AttachmentViewInjector<ExtraData>?
+    public private(set) var attachmentViewInjector: AttachmentViewInjector?
 
     // MARK: - Containers
 
@@ -164,7 +161,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
     /// - Parameter options: The options describing the layout of the content view.
     open func setUpLayoutIfNeeded(
         options: ChatMessageLayoutOptions,
-        attachmentViewInjectorType: _AttachmentViewInjector<ExtraData>.Type?
+        attachmentViewInjectorType: AttachmentViewInjector.Type?
     ) {
         guard layoutOptions == nil else {
             log.assert(layoutOptions == options, """
@@ -447,12 +444,13 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
         
         // Avatar
         let placeholder = appearance.images.userAvatarPlaceholder1
-        if let imageURL = content?.author.imageURL {
-            authorAvatarView?.imageView.loadImage(
-                from: imageURL,
+        if let imageURL = content?.author.imageURL, let imageView = authorAvatarView?.imageView {
+            components.imageLoader.loadImage(
+                into: imageView,
+                url: imageURL,
+                imageCDN: components.imageCDN,
                 placeholder: placeholder,
-                preferredSize: .avatarThumbnailSize,
-                components: components
+                preferredSize: .avatarThumbnailSize
             )
         } else {
             authorAvatarView?.imageView.image = placeholder
@@ -502,13 +500,19 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
         } else {
             threadReplyCountButton?.setTitle(L10n.Message.Threads.reply, for: .normal)
         }
-        let latestReplyAuthorAvatar = content?.latestReplies.first?.author.imageURL
-        threadAvatarView?.imageView.loadImage(
-            from: latestReplyAuthorAvatar,
-            placeholder: appearance.images.userAvatarPlaceholder4,
-            preferredSize: .avatarThumbnailSize,
-            components: components
-        )
+
+        // The last thread participant is the author of the most recent reply.
+        let threadAvatarUrl = content?.threadParticipants.last?.imageURL
+
+        if let imageView = threadAvatarView?.imageView {
+            components.imageLoader.loadImage(
+                into: imageView,
+                url: threadAvatarUrl,
+                imageCDN: components.imageCDN,
+                placeholder: appearance.images.userAvatarPlaceholder4,
+                preferredSize: .avatarThumbnailSize
+            )
+        }
 
         // Reactions view
         reactionsBubbleView?.tailDirection = content
@@ -633,7 +637,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
 
     /// Instantiates, configures and assigns `bubbleView` when called for the first time.
     /// - Returns: The `bubbleView` subview.
-    open func createBubbleView() -> _ChatMessageBubbleView<ExtraData> {
+    open func createBubbleView() -> ChatMessageBubbleView {
         if bubbleView == nil {
             bubbleView = components
                 .messageBubbleView
@@ -645,7 +649,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
 
     /// Instantiates, configures and assigns `quotedMessageView` when called for the first time.
     /// - Returns: The `quotedMessageView` subview.
-    open func createQuotedMessageView() -> _QuotedChatMessageView<ExtraData> {
+    open func createQuotedMessageView() -> QuotedChatMessageView {
         if quotedMessageView == nil {
             quotedMessageView = components
                 .quotedMessageView
@@ -660,7 +664,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
 
     /// Instantiates, configures and assigns `reactionsView` when called for the first time.
     /// - Returns: The `reactionsView` subview.
-    open func createReactionsView() -> _ChatMessageReactionsView<ExtraData> {
+    open func createReactionsView() -> ChatMessageReactionsView {
         if reactionsView == nil {
             reactionsView = components
                 .reactionsView
@@ -766,7 +770,7 @@ open class _ChatMessageContentView<ExtraData: ExtraDataTypes>: _View, ThemeProvi
     }
 }
 
-private extension _ChatMessage {
+private extension ChatMessage {
     var reactions: [ChatMessageReactionData] {
         let userReactionIDs = Set(currentUserReactions.map(\.type))
         return reactionScores

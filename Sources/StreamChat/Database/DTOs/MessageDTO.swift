@@ -26,13 +26,14 @@ class MessageDTO: NSManagedObject {
     
     @NSManaged var user: UserDTO
     @NSManaged var mentionedUsers: Set<UserDTO>
-    @NSManaged var threadParticipants: Set<UserDTO>
+    @NSManaged var threadParticipants: NSOrderedSet
     @NSManaged var channel: ChannelDTO?
     @NSManaged var replies: Set<MessageDTO>
     @NSManaged var flaggedBy: CurrentUserDTO?
     @NSManaged var reactions: Set<MessageReactionDTO>
     @NSManaged var attachments: Set<AttachmentDTO>
     @NSManaged var quotedMessage: MessageDTO?
+    @NSManaged var searches: Set<MessageSearchQueryDTO>
 
     @NSManaged var pinned: Bool
     @NSManaged var pinnedBy: UserDTO?
@@ -200,6 +201,13 @@ class MessageDTO: NSManagedObject {
         return request
     }
     
+    static func messagesFetchRequest(for query: MessageSearchQuery) -> NSFetchRequest<MessageDTO> {
+        let request = NSFetchRequest<MessageDTO>(entityName: MessageDTO.entityName)
+        request.predicate = NSPredicate(format: "ANY searches.filterHash == %@", query.filterHash)
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \MessageDTO.defaultSortingKey, ascending: true)]
+        return request
+    }
+    
     /// Returns a fetch request for the dto with a specific `messageId`.
     static func message(withID messageId: MessageId) -> NSFetchRequest<MessageDTO> {
         let request = NSFetchRequest<MessageDTO>(entityName: MessageDTO.entityName)
@@ -217,13 +225,13 @@ class MessageDTO: NSManagedObject {
         request.sortDescriptors = [NSSortDescriptor(keyPath: \MessageDTO.createdAt, ascending: false)]
         request.fetchLimit = limit
         request.fetchOffset = offset
-        return try! context.fetch(request)
+        return load(by: request, context: context)
     }
     
     static func load(id: String, context: NSManagedObjectContext) -> MessageDTO? {
         let request = NSFetchRequest<MessageDTO>(entityName: entityName)
         request.predicate = NSPredicate(format: "id == %@", id)
-        return try! context.fetch(request).first
+        return load(by: request, context: context).first
     }
     
     static func loadOrCreate(id: String, context: NSManagedObjectContext) -> MessageDTO {
@@ -248,50 +256,7 @@ class MessageDTO: NSManagedObject {
         request.sortDescriptors = [NSSortDescriptor(keyPath: \MessageDTO.createdAt, ascending: false)]
         request.fetchLimit = limit
         request.fetchOffset = offset
-        return try! context.fetch(request)
-    }
-
-    static func loadAttachmentCounts(
-        for messageId: MessageId,
-        context: NSManagedObjectContext
-    ) -> [AttachmentType: Int] {
-        enum AttachmentScoreKey: String {
-            case type
-            case count
-        }
-
-        let count = NSExpressionDescription()
-        count.name = AttachmentScoreKey.count.rawValue
-        count.expressionResultType = .integer64AttributeType
-        count.expression = NSExpression(
-            forFunction: "count:",
-            arguments: [NSExpression(forKeyPath: AttachmentScoreKey.type.rawValue)]
-        )
-
-        let request = NSFetchRequest<NSDictionary>(entityName: AttachmentDTO.entityName)
-        request.propertiesToFetch = [AttachmentScoreKey.type.rawValue, count]
-        request.propertiesToGroupBy = [AttachmentScoreKey.type.rawValue]
-        request.resultType = .dictionaryResultType
-        request.predicate = NSPredicate(
-            format: "%K.%K == %@",
-            #keyPath(AttachmentDTO.message),
-            #keyPath(MessageDTO.id),
-            messageId
-        )
-
-        do {
-            return try context.fetch(request).reduce(into: [:]) { counts, entry in
-                guard
-                    let type = entry.value(forKey: AttachmentScoreKey.type.rawValue) as? String,
-                    let count = entry.value(forKey: AttachmentScoreKey.count.rawValue) as? Int
-                else { return }
-
-                counts[.init(rawValue: type)] = count
-            }
-        } catch {
-            log.error("Failed to fetch attachment counts for the message with id: \(messageId), error: \(error)")
-            return [:]
-        }
+        return load(by: request, context: context)
     }
 }
 
@@ -304,7 +269,7 @@ extension MessageDTO {
 }
 
 extension NSManagedObjectContext: MessageDatabaseSession {
-    func createNewMessage<ExtraData: MessageExtraData>(
+    func createNewMessage(
         in cid: ChannelId,
         text: String,
         pinning: MessagePinning?,
@@ -317,7 +282,7 @@ extension NSManagedObjectContext: MessageDatabaseSession {
         isSilent: Bool,
         quotedMessageId: MessageId?,
         createdAt: Date?,
-        extraData: ExtraData
+        extraData: [String: RawJSON]
     ) throws -> MessageDTO {
         guard let currentUserDTO = currentUser else {
             throw ClientError.CurrentUserDoesNotExist()
@@ -386,7 +351,7 @@ extension NSManagedObjectContext: MessageDatabaseSession {
         return message
     }
     
-    func saveMessage<ExtraData: ExtraDataTypes>(payload: MessagePayload<ExtraData>, for cid: ChannelId?) throws -> MessageDTO {
+    func saveMessage(payload: MessagePayload, for cid: ChannelId?) throws -> MessageDTO {
         guard payload.channel != nil || cid != nil else {
             throw ClientError.MessagePayloadSavingFailure("""
             Either `payload.channel` or `cid` must be provided to sucessfuly save the message payload.
@@ -411,7 +376,17 @@ extension NSManagedObjectContext: MessageDatabaseSession {
         dto.parentMessageId = payload.parentId
         dto.showReplyInChannel = payload.showReplyInChannel
         dto.replyCount = Int32(payload.replyCount)
-        dto.extraData = try JSONEncoder.default.encode(payload.extraData)
+
+        do {
+            dto.extraData = try JSONEncoder.default.encode(payload.extraData)
+        } catch {
+            log.error(
+                "Failed to decode extra payload for Message with id: <\(dto.id)>, using default value instead. "
+                    + "Error: \(error)"
+            )
+            dto.extraData = Data()
+        }
+        
         dto.isSilent = payload.isSilent
         dto.pinned = payload.pinned
         dto.pinExpires = payload.pinExpires
@@ -443,8 +418,8 @@ extension NSManagedObjectContext: MessageDatabaseSession {
         })
 
         // If user participated in thread, but deleted message later, we need to get rid of it if backends does
-        dto.threadParticipants = try Set(
-            payload.threadParticipants.map { try saveUser(payload: $0) }
+        dto.threadParticipants = try NSOrderedSet(
+            array: payload.threadParticipants.map { try saveUser(payload: $0) }
         )
 
         var channelDTO: ChannelDTO?
@@ -500,6 +475,12 @@ extension NSManagedObjectContext: MessageDatabaseSession {
         return dto
     }
     
+    func saveMessage(payload: MessagePayload, for query: MessageSearchQuery) throws -> MessageDTO {
+        let messageDTO = try saveMessage(payload: payload, for: nil)
+        messageDTO.searches.insert(saveQuery(query: query))
+        return messageDTO
+    }
+    
     func message(id: MessageId) -> MessageDTO? { .load(id: id, context: self) }
     
     func delete(message: MessageDTO) {
@@ -527,18 +508,19 @@ extension NSManagedObjectContext: MessageDatabaseSession {
 
 extension MessageDTO {
     /// Snapshots the current state of `MessageDTO` and returns an immutable model object from it.
-    func asModel<ExtraData: ExtraDataTypes>() -> _ChatMessage<ExtraData> { .init(fromDTO: self) }
+    func asModel() -> ChatMessage { .init(fromDTO: self) }
     
     /// Snapshots the current state of `MessageDTO` and returns its representation for the use in API calls.
-    func asRequestBody<ExtraData: ExtraDataTypes>() -> MessageRequestBody<ExtraData> {
-        var extraData: ExtraData.Message?
+    func asRequestBody() -> MessageRequestBody {
+        var extraData: [String: RawJSON]
         do {
-            extraData = try JSONDecoder.default.decode(ExtraData.Message.self, from: self.extraData)
+            extraData = try JSONDecoder.default.decode([String: RawJSON].self, from: self.extraData)
         } catch {
             log.assertionFailure(
                 "Failed decoding saved extra data with error: \(error). This should never happen because"
                     + "the extra data must be a valid JSON to be saved."
             )
+            extraData = [:]
         }
         
         return .init(
@@ -557,12 +539,12 @@ extension MessageDTO {
             mentionedUserIds: mentionedUsers.map(\.id),
             pinned: pinned,
             pinExpires: pinExpires,
-            extraData: extraData ?? .defaultValue
+            extraData: extraData
         )
     }
 }
 
-private extension _ChatMessage {
+private extension ChatMessage {
     init(fromDTO dto: MessageDTO) {
         let context = dto.managedObjectContext!
         
@@ -582,14 +564,13 @@ private extension _ChatMessage {
         isSilent = dto.isSilent
         reactionScores = dto.reactionScores.mapKeys { MessageReactionType(rawValue: $0) }
         
-        let extraData: ExtraData.Message
         do {
-            extraData = try JSONDecoder.default.decode(ExtraData.Message.self, from: dto.extraData)
+            extraData = try JSONDecoder.default.decode([String: RawJSON].self, from: dto.extraData)
         } catch {
             log.error("Failed to decode extra data for Message with id: <\(dto.id)>, using default value instead. Error: \(error)")
-            extraData = .defaultValue
+            extraData = [:]
         }
-        self.extraData = extraData
+
         localState = dto.localMessageState
         isFlaggedByCurrentUser = dto.flaggedBy != nil
         
@@ -625,11 +606,14 @@ private extension _ChatMessage {
             $_currentUserReactions = ({ [] }, nil)
         }
         
-        if dto.threadParticipants.isEmpty {
+        if dto.threadParticipants.array.isEmpty {
             $_threadParticipants = ({ [] }, nil)
         } else {
             $_threadParticipants = (
-                { Set(dto.threadParticipants.map { $0.asModel() }) },
+                {
+                    let threadParticipants = dto.threadParticipants.array as? [UserDTO] ?? []
+                    return threadParticipants.map { $0.asModel() }
+                },
                 dto.managedObjectContext
             )
         }
@@ -648,7 +632,7 @@ private extension _ChatMessage {
             $_latestReplies = ({
                 MessageDTO
                     .loadReplies(for: dto.id, limit: 5, context: context)
-                    .map(_ChatMessage.init)
+                    .map(ChatMessage.init)
             }, dto.managedObjectContext)
         }
         
@@ -665,10 +649,6 @@ private extension _ChatMessage {
         }
         
         $_quotedMessage = ({ dto.quotedMessage?.asModel() }, dto.managedObjectContext)
-
-        $_attachmentCounts = ({ [id] in
-            MessageDTO.loadAttachmentCounts(for: id, context: context)
-        }, context)
     }
 }
 

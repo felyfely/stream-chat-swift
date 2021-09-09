@@ -7,16 +7,17 @@ import Foundation
 /// A `RawJSON` type.
 /// Used to store and operate objects of unknown structure that's not possible to decode.
 /// https://forums.swift.org/t/new-unevaluated-type-for-decoder-to-allow-later-re-encoding-of-data-with-unknown-structure/11117
-indirect enum RawJSON: Codable, Hashable {
-    case double(Double)
+public indirect enum RawJSON: Codable, Hashable {
+    case number(Double)
     case string(String)
-    case integer(Int)
     case bool(Bool)
     case dictionary([String: RawJSON])
     case array([RawJSON])
     case `nil`
 
-    init(from decoder: Decoder) throws {
+    static let double = number
+
+    public init(from decoder: Decoder) throws {
         let singleValueContainer = try decoder.singleValueContainer()
         if let value = try? singleValueContainer.decode(Bool.self) {
             self = .bool(value)
@@ -24,11 +25,8 @@ indirect enum RawJSON: Codable, Hashable {
         } else if let value = try? singleValueContainer.decode(String.self) {
             self = .string(value)
             return
-        } else if let value = try? singleValueContainer.decode(Int.self) {
-            self = .integer(value)
-            return
         } else if let value = try? singleValueContainer.decode(Double.self) {
-            self = .double(value)
+            self = .number(value)
             return
         } else if let value = try? singleValueContainer.decode([String: RawJSON].self) {
             self = .dictionary(value)
@@ -47,12 +45,10 @@ indirect enum RawJSON: Codable, Hashable {
             )
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        
         switch self {
-        case let .integer(value): try container.encode(value)
-        case let .double(value): try container.encode(value)
+        case let .number(value): try container.encode(value)
         case let .bool(value): try container.encode(value)
         case let .string(value): try container.encode(value)
         case let .array(value): try container.encode(value)
@@ -62,7 +58,7 @@ indirect enum RawJSON: Codable, Hashable {
     }
 }
 
-extension RawJSON {
+public extension RawJSON {
     func dictionary(with value: RawJSON?, forKey key: String) -> RawJSON? {
         guard case var .dictionary(content) = self else { return nil }
         content[key] = value

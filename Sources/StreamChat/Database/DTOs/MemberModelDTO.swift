@@ -26,6 +26,7 @@ class MemberDTO: NSManagedObject {
     // MARK: - Relationships
     
     @NSManaged var user: UserDTO
+    @NSManaged var queries: Set<ChannelMemberListQueryDTO>
     
     private static func createId(userId: String, channeldId: ChannelId) -> String {
         channeldId.rawValue + userId
@@ -44,7 +45,7 @@ extension MemberDTO {
     }
     
     /// Returns a fetch request for the DTOs matching the provided `query`.
-    static func members<ExtraData: UserExtraData>(matching query: _ChannelMemberListQuery<ExtraData>) -> NSFetchRequest<MemberDTO> {
+    static func members(matching query: ChannelMemberListQuery) -> NSFetchRequest<MemberDTO> {
         let request = NSFetchRequest<MemberDTO>(entityName: MemberDTO.entityName)
         request.predicate = NSPredicate(format: "ANY queries.queryHash == %@", query.queryHash)
         request.sortDescriptors = query.sortDescriptors
@@ -80,17 +81,20 @@ extension MemberDTO {
     static func loadLastActiveMembers(cid: ChannelId, context: NSManagedObjectContext) -> [MemberDTO] {
         let request = NSFetchRequest<MemberDTO>(entityName: MemberDTO.entityName)
         request.predicate = NSPredicate(format: "channel.cid == %@", cid.rawValue)
-        request.sortDescriptors = [ChannelMemberListSortingKey.lastActiveSortDescriptor]
-        request.fetchLimit = context.localCachingSettings?.chatChannel.lastActiveMembersLimit ?? 5
-        return try! context.fetch(request)
+        request.sortDescriptors = [
+            ChannelMemberListSortingKey.lastActiveSortDescriptor,
+            ChannelMemberListSortingKey.defaultSortDescriptor
+        ]
+        request.fetchLimit = context.localCachingSettings?.chatChannel.lastActiveMembersLimit ?? 100
+        return load(by: request, context: context)
     }
 }
 
 extension NSManagedObjectContext {
-    func saveMember<ExtraData: UserExtraData>(
-        payload: MemberPayload<ExtraData>,
+    func saveMember(
+        payload: MemberPayload,
         channelId: ChannelId,
-        query: _ChannelMemberListQuery<ExtraData>?
+        query: ChannelMemberListQuery?
     ) throws -> MemberDTO {
         let dto = MemberDTO.loadOrCreate(id: payload.user.id, channelId: channelId, context: self)
         
@@ -129,32 +133,32 @@ extension NSManagedObjectContext {
 }
 
 extension MemberDTO {
-    func asModel<ExtraData: UserExtraData>() -> _ChatChannelMember<ExtraData> { .create(fromDTO: self) }
+    func asModel() -> ChatChannelMember { .create(fromDTO: self) }
 }
 
-extension _ChatChannelMember {
-    fileprivate static func create(fromDTO dto: MemberDTO) -> _ChatChannelMember {
-        let extraData: ExtraData
+extension ChatChannelMember {
+    fileprivate static func create(fromDTO dto: MemberDTO) -> ChatChannelMember {
+        let extraData: [String: RawJSON]
         do {
-            extraData = try JSONDecoder.default.decode(ExtraData.self, from: dto.user.extraData)
+            extraData = try JSONDecoder.default.decode([String: RawJSON].self, from: dto.user.extraData)
         } catch {
             log.error(
-                "Failed to decode extra data for Member with id: <\(dto.user.id)>, using default value instead. "
+                "Failed to decode extra data for user with id: <\(dto.user.id)>, using default value instead. "
                     + "Error: \(error)"
             )
-            extraData = .defaultValue
+            extraData = [:]
         }
-        
+
         let role = dto.channelRoleRaw.flatMap { MemberRole(rawValue: $0) } ?? .member
         
-        return _ChatChannelMember(
+        return ChatChannelMember(
             id: dto.user.id,
             name: dto.user.name,
             imageURL: dto.user.imageURL,
             isOnline: dto.user.isOnline,
             isBanned: dto.user.isBanned,
             isFlaggedByCurrentUser: dto.user.flaggedBy != nil,
-            userRole: UserRole(rawValue: dto.user.userRoleRaw)!,
+            userRole: UserRole(rawValue: dto.user.userRoleRaw),
             userCreatedAt: dto.user.userCreatedAt,
             userUpdatedAt: dto.user.userUpdatedAt,
             lastActiveAt: dto.user.lastActivityAt,
@@ -173,7 +177,7 @@ extension _ChatChannelMember {
     }
 }
 
-private extension _ChannelMemberListQuery {
+private extension ChannelMemberListQuery {
     var sortDescriptors: [NSSortDescriptor] {
         let sortDescriptors = sort.compactMap { $0.key.sortDescriptor(isAscending: $0.isAscending) }
         return sortDescriptors.isEmpty ? [ChannelMemberListSortingKey.defaultSortDescriptor] : sortDescriptors

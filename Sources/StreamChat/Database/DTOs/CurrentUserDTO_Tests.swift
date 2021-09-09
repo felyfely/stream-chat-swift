@@ -20,10 +20,26 @@ class CurrentUserModelDTO_Tests: XCTestCase {
         super.tearDown()
     }
     
-    func test_currentUserPayload_isStoredAndLoadedFromDB() throws {
-        let userPayload: UserPayload<NoExtraData> = .dummy(userId: .unique)
+    func test_currentUserPayload_customRolesEncoding() throws {
+        let payload: CurrentUserPayload = .dummy(userPayload: .dummy(userId: .unique, role: UserRole("banana-master")))
+
+        // Asynchronously save the payload to the db
+        try database.writeSynchronously { session in
+            try session.saveCurrentUser(payload: payload)
+        }
+
+        // Load the user from the db and check the fields are correct
+        let loadedCurrentUser: CurrentChatUser = try XCTUnwrap(
+            database.viewContext.currentUser?.asModel()
+        )
         
-        let payload: CurrentUserPayload<NoExtraData> = .dummy(
+        XCTAssertEqual(UserRole("banana-master"), loadedCurrentUser.userRole)
+    }
+
+    func test_currentUserPayload_isStoredAndLoadedFromDB() throws {
+        let userPayload: UserPayload = .dummy(userId: .unique, extraData: ["k": .string("v")])
+        
+        let payload: CurrentUserPayload = .dummy(
             userPayload: userPayload,
             devices: [DevicePayload.dummy],
             mutedUsers: [
@@ -77,8 +93,8 @@ class CurrentUserModelDTO_Tests: XCTestCase {
     }
     
     func test_savingCurrentUser_removesPreviousChannelMutes() throws {
-        let userPayload: UserPayload<NoExtraData> = .dummy(userId: .unique)
-        let payloadWithMutes: CurrentUserPayload<NoExtraData> = .dummy(
+        let userPayload: UserPayload = .dummy(userId: .unique)
+        let payloadWithMutes: CurrentUserPayload = .dummy(
             userPayload: userPayload,
             mutedChannels: [
                 .init(
@@ -105,7 +121,7 @@ class CurrentUserModelDTO_Tests: XCTestCase {
         let allMutesRequest = NSFetchRequest<ChannelMuteDTO>(entityName: ChannelMuteDTO.entityName)
         XCTAssertEqual(try! database.viewContext.count(for: allMutesRequest), 2)
         
-        let payloadWithNoMutes: CurrentUserPayload<NoExtraData> = .dummy(
+        let payloadWithNoMutes: CurrentUserPayload = .dummy(
             userPayload: userPayload,
             mutedChannels: []
         )
@@ -122,7 +138,7 @@ class CurrentUserModelDTO_Tests: XCTestCase {
     func test_defaultExtraDataIsUsed_whenExtraDataDecodingFails() throws {
         let userId: UserId = .unique
         
-        let payload: CurrentUserPayload<NoExtraData> = .dummy(userId: userId, role: .user)
+        let payload: CurrentUserPayload = .dummy(userId: userId, role: .user)
         
         try database.writeSynchronously { session in
             // Save the user
@@ -132,7 +148,7 @@ class CurrentUserModelDTO_Tests: XCTestCase {
         }
         
         let loadedUser: CurrentChatUser? = database.viewContext.currentUser?.asModel()
-        XCTAssertEqual(loadedUser?.extraData, .defaultValue)
+        XCTAssertEqual(loadedUser?.extraData, [:])
     }
     
     func test_currentUser_isCached() throws {

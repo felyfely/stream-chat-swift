@@ -5,13 +5,9 @@
 import Foundation
 
 /// A type representing a chat message attachment.
-/// `_ChatMessageAttachment<Payload>` is an immutable snapshot of message attachment at the given time.
-///
-/// - Note: `_ChatMessageAttachment` type is not meant to be used directly. For each specific attachment type
-/// there is a type alias which resolves the generic (`ChatMessageFileAttachment`, `ChatMessageImageAttachment`, etc.).
-/// If you have your own attachment with custom payload consider having a type alias.
+/// `ChatMessageAttachment<Payload>` is an immutable snapshot of message attachment at the given time.
 @dynamicMemberLookup
-public struct _ChatMessageAttachment<Payload> {
+public struct ChatMessageAttachment<Payload> {
     /// The attachment identifier.
     public let id: AttachmentId
 
@@ -30,13 +26,13 @@ public struct _ChatMessageAttachment<Payload> {
     public let uploadingState: AttachmentUploadingState?
 }
 
-public extension _ChatMessageAttachment {
+public extension ChatMessageAttachment {
     subscript<T>(dynamicMember keyPath: KeyPath<Payload, T>) -> T {
         payload[keyPath: keyPath]
     }
 }
 
-extension _ChatMessageAttachment: Equatable where Payload: Equatable {}
+extension ChatMessageAttachment: Equatable where Payload: Equatable {}
 
 /// A type representing the uploading state for attachments that require prior uploading.
 public struct AttachmentUploadingState: Equatable {
@@ -52,7 +48,7 @@ public struct AttachmentUploadingState: Equatable {
 
 // MARK: - Type erasure/recovery
 
-public typealias AnyChatMessageAttachment = _ChatMessageAttachment<Data>
+public typealias AnyChatMessageAttachment = ChatMessageAttachment<Data>
 
 public extension AnyChatMessageAttachment {
     /// Converts type-erased attachment to the attachment with the concrete payload.
@@ -64,7 +60,7 @@ public extension AnyChatMessageAttachment {
     /// - Returns: The attachment with the requested payload type or `nil`.
     func attachment<Payload: AttachmentPayload>(
         payloadType: Payload.Type
-    ) -> _ChatMessageAttachment<Payload>? {
+    ) -> ChatMessageAttachment<Payload>? {
         guard
             Payload.type == type || type == .unknown,
             let concretePayload = try? JSONDecoder.stream.decode(Payload.self, from: payload)
@@ -79,7 +75,7 @@ public extension AnyChatMessageAttachment {
     }
 }
 
-public extension _ChatMessageAttachment where Payload: AttachmentPayload {
+public extension ChatMessageAttachment where Payload: AttachmentPayload {
     /// Returns an attachment matching `self` but payload casted to `Any`.
     var asAnyAttachment: AnyChatMessageAttachment {
         AnyChatMessageAttachment(

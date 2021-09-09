@@ -6,10 +6,7 @@ import StreamChat
 import UIKit
 
 /// Custom view type used to show the message list.
-public typealias ChatMessageListView = _ChatMessageListView<NoExtraData>
-
-/// Custom view type used to show the message list.
-open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customizable, ComponentsProvider {
+open class ChatMessageListView: UITableView, Customizable, ComponentsProvider {
     private var identifiers: Set<String> = .init()
     private var isInitialized: Bool = false
     /// Used for mapping `ListChanges` to sets of `IndexPath` and verifying possible conflicts
@@ -65,12 +62,12 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
     ///   - layoutOptions: The message content view layout options.
     /// - Returns: The cell reuse identifier.
     open func reuseIdentifier(
-        contentViewClass: _ChatMessageContentView<ExtraData>.Type,
-        attachmentViewInjectorType: _AttachmentViewInjector<ExtraData>.Type?,
+        contentViewClass: ChatMessageContentView.Type,
+        attachmentViewInjectorType: AttachmentViewInjector.Type?,
         layoutOptions: ChatMessageLayoutOptions
     ) -> String {
         let components = [
-            _ChatMessageCell<ExtraData>.reuseId,
+            ChatMessageCell.reuseId,
             String(layoutOptions.rawValue),
             String(describing: contentViewClass),
             String(describing: attachmentViewInjectorType)
@@ -81,7 +78,7 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
     /// Returns the reuse identifier of the given cell.
     /// - Parameter cell: The cell to calculate reuse identifier for.
     /// - Returns: The reuse identifier.
-    open func reuseIdentifier(for cell: _ChatMessageCell<ExtraData>?) -> String? {
+    open func reuseIdentifier(for cell: ChatMessageCell?) -> String? {
         guard
             let cell = cell,
             let messageContentView = cell.messageContentView,
@@ -101,14 +98,14 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
     ///   - contentViewClass: The type of content view the cell will be displaying.
     ///   - layoutOptions: The option set describing content view layout.
     ///   - indexPath: The cell index path.
-    /// - Returns: The instance of `_ChatMessageCollectionViewCell<ExtraData>` set up with the
+    /// - Returns: The instance of `ChatMessageCollectionViewCell` set up with the
     /// provided `contentViewClass` and `layoutOptions`
     open func dequeueReusableCell(
-        contentViewClass: _ChatMessageContentView<ExtraData>.Type,
-        attachmentViewInjectorType: _AttachmentViewInjector<ExtraData>.Type?,
+        contentViewClass: ChatMessageContentView.Type,
+        attachmentViewInjectorType: AttachmentViewInjector.Type?,
         layoutOptions: ChatMessageLayoutOptions,
         for indexPath: IndexPath
-    ) -> _ChatMessageCell<ExtraData> {
+    ) -> ChatMessageCell {
         let reuseIdentifier = self.reuseIdentifier(
             contentViewClass: contentViewClass,
             attachmentViewInjectorType: attachmentViewInjectorType,
@@ -120,13 +117,13 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
         if !identifiers.contains(reuseIdentifier) {
             identifiers.insert(reuseIdentifier)
 
-            register(_ChatMessageCell<ExtraData>.self, forCellReuseIdentifier: reuseIdentifier)
+            register(ChatMessageCell.self, forCellReuseIdentifier: reuseIdentifier)
         }
 
         let cell = dequeueReusableCell(
             withIdentifier: reuseIdentifier,
             for: indexPath
-        ) as! _ChatMessageCell<ExtraData>
+        ) as! ChatMessageCell
 
         cell.setMessageContentIfNeeded(
             contentViewClass: contentViewClass,
@@ -150,10 +147,9 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
         let lastMessageIndexPath = IndexPath(row: 0, section: 0)
         let prevMessageIndexPath = IndexPath(row: 1, section: 0)
 
-        if
-            rectForRow(at: prevMessageIndexPath).minY < contentOffset.y,
-            rowsRange.contains(prevMessageIndexPath.row) {
-            scrollToRow(at: prevMessageIndexPath, at: .top, animated: false)
+        if rectForRow(at: prevMessageIndexPath).minY < contentOffset.y,
+           rowsRange.contains(prevMessageIndexPath.row) {
+            scrollToRow(at: prevMessageIndexPath, at: .top, animated: animated)
         }
         
         if rowsRange.contains(lastMessageIndexPath.row) {
@@ -173,76 +169,65 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
     
     /// Updates the table view data with given `changes`.
     open func updateMessages(
-        with changes: [ListChange<_ChatMessage<ExtraData>>],
+        with changes: [ListChange<ChatMessage>],
         completion: (() -> Void)? = nil
     ) {
-        var shouldScrollToBottom = false
-        
         guard let _ = collectionUpdatesMapper.mapToSetsOfIndexPaths(
             changes: changes,
             onConflict: {
                 reloadData()
             }
         ) else { return }
-                
-        performBatchUpdates({
-            changes.forEach {
-                switch $0 {
-                case let .insert(message, index: index):
-                    if message.isSentByCurrentUser, index == IndexPath(item: 0, section: 0) {
-                        // When the message from current user comes we should scroll to bottom
-                        shouldScrollToBottom = true
-                    }
-                    if index.row < self.numberOfRows(inSection: 0) {
-                        // Reload previous cell if exists
-                        self.reloadRows(at: [index], with: .automatic)
-                    }
-                    self.insertRows(at: [index], with: .none)
-                case let .move(_, fromIndex: fromIndex, toIndex: toIndex):
-                    self.moveRow(at: fromIndex, to: toIndex)
 
-                case let .update(_, index: index):
-                    self.reloadRows(at: [index], with: .automatic)
+        if changes.count > 1 {
+            reloadData()
+            return
+        }
 
-                case let .remove(_, index: index):
-                    let indexPathToReload = IndexPath(row: index.row + 1, section: index.section)
-                    if self.numberOfRows(inSection: 0) > indexPathToReload.row {
-                        // Reload previous cell if exists
-                        self.reloadRows(at: [indexPathToReload], with: .automatic)
+        changes.forEach {
+            switch $0 {
+            case let .insert(message, index: index):
+                self.reloadData()
+                if message.isSentByCurrentUser, index == IndexPath(item: 0, section: 0) {
+                    self.scrollToBottomAction = .init { [weak self] in
+                        self?.scrollToMostRecentMessage()
                     }
-                    self.deleteRows(at: [index], with: .fade)
                 }
+
+            case let .move(_, fromIndex: fromIndex, toIndex: toIndex):
+                self.moveRow(at: fromIndex, to: toIndex)
+
+            case let .update(_, index: index):
+                self.reloadRows(at: [index], with: .automatic)
+
+            case .remove:
+                self.reloadData()
             }
-        }, completion: { _ in
-            if shouldScrollToBottom {
-                self.scrollToBottomAction = .init { [weak self] in
-                    self?.scrollToMostRecentMessage()
-                }
-            }
-            
-            completion?()
-        })
+        }
     }
-    
+
     override open func reloadRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation) {
         let visibleCells = getVisibleCells()
-        
+
         var indexPathToReload: [IndexPath] = []
-        
+
         indexPaths.forEach { indexPath in
             // Get currently shown cell at index path
             let cellBeforeUpdate = visibleCells[indexPath]
             let cellBeforeUpdateReuseIdentifier = reuseIdentifier(for: cellBeforeUpdate)
             let cellBeforeUpdateMessage = cellBeforeUpdate?.messageContentView?.content
-            
+
             // Get the cell that will be shown if reload happens
-            let cellAfterUpdate = dataSource?.tableView(self, cellForRowAt: indexPath) as? _ChatMessageCell<ExtraData>
+            let cellAfterUpdate = dataSource?.tableView(self, cellForRowAt: indexPath) as? ChatMessageCell
             let cellAfterUpdateReuseIdentifier = reuseIdentifier(for: cellAfterUpdate)
             let cellAfterUpdateMessage = cellAfterUpdate?.messageContentView?.content
-            
+
             if
                 cellBeforeUpdateReuseIdentifier == cellAfterUpdateReuseIdentifier,
-                cellBeforeUpdateMessage?.id == cellAfterUpdateMessage?.id {
+                cellBeforeUpdateMessage?.id == cellAfterUpdateMessage?.id,
+                cellBeforeUpdateMessage?.updatedAt == cellAfterUpdateMessage?.updatedAt,
+                cellBeforeUpdateMessage?.type == cellAfterUpdateMessage?.type,
+                cellBeforeUpdateMessage?.deletedAt == cellAfterUpdateMessage?.deletedAt {
                 // If identifiers and messages match we can simply update the current cell with new content
                 cellBeforeUpdate?.messageContentView?.content = cellAfterUpdateMessage
             } else {
@@ -251,19 +236,19 @@ open class _ChatMessageListView<ExtraData: ExtraDataTypes>: UITableView, Customi
                 indexPathToReload.append(indexPath)
             }
         }
-        
+
         if !indexPathToReload.isEmpty {
             super.reloadRows(at: indexPathToReload, with: animation)
         }
     }
 
-    private func getVisibleCells() -> [IndexPath: _ChatMessageCell<ExtraData>] {
+    private func getVisibleCells() -> [IndexPath: ChatMessageCell] {
         visibleCells.reduce(into: [:]) { result, cell in
             guard
-                let cell = cell as? _ChatMessageCell<ExtraData>,
+                let cell = cell as? ChatMessageCell,
                 let indexPath = cell.messageContentView?.indexPath?()
             else { return }
-            
+
             result[indexPath] = cell
         }
     }

@@ -4,15 +4,6 @@
 
 import Foundation
 
-/// A type representing a chat user. `ChatUser` is an immutable snapshot of a chat user entity at the given time.
-///
-/// - Note: `ChatUser` is a typealias of `_ChatUser` with default extra data. If you're using custom extra data,
-/// create your own typealias of `_ChatUser`.
-///
-/// Learn more about using custom extra data in our [cheat sheet](https://github.com/GetStream/stream-chat-swift/wiki/Cheat-Sheet#working-with-extra-data).
-///
-public typealias ChatUser = _ChatUser<NoExtraData>
-
 /// A unique identifier of a user.
 public typealias UserId = String
 
@@ -21,13 +12,7 @@ public typealias TeamId = String
 
 /// A type representing a chat user. `ChatUser` is an immutable snapshot of a chat user entity at the given time.
 ///
-/// - Note: `_ChatUser` type is not meant to be used directly. If you're using default extra data, use `ChatUser`
-/// typealias instead. If you're using custom extra data, create your own typealias of `_ChatUser`.
-///
-/// Learn more about using custom extra data in our [cheat sheet](https://github.com/GetStream/stream-chat-swift/wiki/Cheat-Sheet#working-with-extra-data).
-///
-@dynamicMemberLookup
-public class _ChatUser<ExtraData: UserExtraData> {
+public class ChatUser {
     /// The unique identifier of the user.
     public let id: UserId
     
@@ -67,12 +52,8 @@ public class _ChatUser<ExtraData: UserExtraData> {
     /// [docs](https://getstream.io/chat/docs/multi_tenant_chat/?language=swift) for more info.
     public let teams: Set<TeamId>
     
-    /// Custom additional data of the user object. You can modify it by setting your custom `ExtraData` type.
-    ///
-    /// Learn more about using custom extra data in our [cheat sheet](https://github.com/GetStream/stream-chat-swift/wiki/Cheat-Sheet#working-with-extra-data).
-    ///
-    public let extraData: ExtraData
-    
+    public let extraData: [String: RawJSON]
+
     init(
         id: UserId,
         name: String?,
@@ -85,7 +66,7 @@ public class _ChatUser<ExtraData: UserExtraData> {
         updatedAt: Date,
         lastActiveAt: Date?,
         teams: Set<TeamId>,
-        extraData: ExtraData
+        extraData: [String: RawJSON]
     ) {
         self.id = id
         self.name = name
@@ -102,8 +83,8 @@ public class _ChatUser<ExtraData: UserExtraData> {
     }
 }
 
-extension _ChatUser: Hashable {
-    public static func == (lhs: _ChatUser<ExtraData>, rhs: _ChatUser<ExtraData>) -> Bool {
+extension ChatUser: Hashable {
+    public static func == (lhs: ChatUser, rhs: ChatUser) -> Bool {
         lhs.id == rhs.id
     }
     
@@ -112,29 +93,45 @@ extension _ChatUser: Hashable {
     }
 }
 
-extension _ChatUser {
-    public subscript<T>(dynamicMember keyPath: KeyPath<ExtraData, T>) -> T {
-        extraData[keyPath: keyPath]
+public struct UserRole: RawRepresentable, Codable, Hashable, ExpressibleByStringLiteral {
+    public let rawValue: String
+    
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+    
+    public init(stringLiteral value: String) {
+        self.init(rawValue: value)
     }
 }
 
-public enum UserRole: String, Codable, Hashable {
+public extension UserRole {
     /// This is the default role assigned to any user.
-    case user
-    
-    /// This role allows users to perform more advanced actions. This role should be granted only to staff users
-    case admin
-    
-    /// A user that connected using guest user authentication.
-    case guest
-    
-    /// A user that connected using anonymous authentication.
-    case anonymous
-}
+    static let user = Self(rawValue: "user")
 
-/// You need to make your custom type conforming to this protocol if you want to use it for extending `ChatUser` entity with your
-/// custom additional data.
-///
-/// Learn more about using custom extra data in our [cheat sheet](https://github.com/GetStream/stream-chat-swift/wiki/Cheat-Sheet#working-with-extra-data).
-///
-public protocol UserExtraData: ExtraData {}
+    /// This role allows users to perform more advanced actions. This role should be granted only to staff users
+    static let admin = Self(rawValue: "admin")
+
+    /// A user that connected using guest user authentication.
+    static let guest = Self(rawValue: "guest")
+
+    /// A user that connected using anonymous authentication.
+    static let anonymous = Self(rawValue: "anonymous")
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        switch value {
+        case "user":
+            self = .user
+        case "guest":
+            self = .guest
+        case "admin":
+            self = .admin
+        case "anonymous":
+            self = .anonymous
+        default:
+            self = .init(rawValue: value)
+        }
+    }
+}

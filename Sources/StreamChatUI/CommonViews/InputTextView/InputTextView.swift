@@ -16,6 +16,7 @@ public protocol InputTextViewClipboardAttachmentDelegate: AnyObject {
 
 /// A view for inputting text with placeholder support. Since it is a subclass
 /// of `UITextView`, the `UITextViewDelegate` can be used to observe text changes.
+@objc(StreamInputTextView)
 open class InputTextView: UITextView, AppearanceProvider {
     /// The delegate which gets notified when an attachment is pasted into the text view
     open weak var clipboardAttachmentDelegate: InputTextViewClipboardAttachmentDelegate?
@@ -32,6 +33,22 @@ open class InputTextView: UITextView, AppearanceProvider {
         didSet {
             textDidChangeProgrammatically()
         }
+    }
+    
+    /// The minimum height of the text view.
+    /// When there is no content in the text view OR the height of the content is less than this value,
+    /// the text view will be of this height
+    open var minimumHeight: CGFloat {
+        38.0
+    }
+    
+    /// The constraint responsible for setting the height of the text view.
+    open var heightConstraint: NSLayoutConstraint?
+    
+    /// The maximum height of the text view.
+    /// When the content in the text view is greater than this height, scrolling will be enabled and the text view's height will be restricted to this value
+    open var maximumHeight: CGFloat {
+        120.0
     }
     
     override open var attributedText: NSAttributedString! {
@@ -82,7 +99,9 @@ open class InputTextView: UITextView, AppearanceProvider {
         )
         placeholderLabel.pin(anchors: [.centerY], to: self)
         
-        isScrollEnabled = false
+        heightConstraint = heightAnchor.constraint(equalToConstant: minimumHeight)
+        heightConstraint?.isActive = true
+        isScrollEnabled = true
     }
 
     /// Sets the given text in the current caret position.
@@ -105,6 +124,29 @@ open class InputTextView: UITextView, AppearanceProvider {
         
     @objc open func handleTextChange() {
         placeholderLabel.isHidden = !text.isEmpty
+        setTextViewHeight()
+    }
+
+    open func setTextViewHeight() {
+        var heightToSet = minimumHeight
+
+        if contentSize.height <= minimumHeight {
+            heightToSet = minimumHeight
+        } else if contentSize.height >= maximumHeight {
+            heightToSet = maximumHeight
+        } else {
+            heightToSet = contentSize.height
+        }
+
+        heightConstraint?.constant = heightToSet
+        layoutIfNeeded()
+
+        // This is due to bug in UITextView where the scroll sometimes disables
+        // when a very long text is pasted in it.
+        // Doing this ensures that it doesn't happen
+        // Reference: https://stackoverflow.com/a/33194525/3825788
+        isScrollEnabled = false
+        isScrollEnabled = true
     }
     
     // MARK: - Actions on the UITextView

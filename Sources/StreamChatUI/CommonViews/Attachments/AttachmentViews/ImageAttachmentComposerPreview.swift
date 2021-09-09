@@ -6,10 +6,7 @@ import StreamChat
 import UIKit
 
 /// A view that displays image attachment preview in composer.
-public typealias ImageAttachmentComposerPreview = _ImageAttachmentComposerPreview<NoExtraData>
-
-/// A view that displays image attachment preview in composer.
-open class _ImageAttachmentComposerPreview<ExtraData: ExtraDataTypes>: _View, ThemeProvider {
+open class ImageAttachmentComposerPreview: _View, ThemeProvider {
     open var width: CGFloat = 100
     open var height: CGFloat = 100
     
@@ -44,7 +41,10 @@ open class _ImageAttachmentComposerPreview<ExtraData: ExtraDataTypes>: _View, Th
     
     override open func updateContent() {
         super.updateContent()
-        
-        imageView.loadImage(from: content, components: components)
+        components.imageLoader.loadImage(
+            into: imageView,
+            url: content,
+            imageCDN: components.imageCDN
+        )
     }
 }

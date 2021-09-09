@@ -14,7 +14,7 @@ class CreateChatViewController: UIViewController {
     }
     
     // Composer subclass intended to be only used in this VC
-    class DemoComposerVC: _ComposerVC<NoExtraData> {
+    class DemoComposerVC: ComposerVC {
         override func createNewMessage(text: String) {
             guard let navController = parent?.parent as? UINavigationController,
                   let controller = channelController else { return }
@@ -27,9 +27,8 @@ class CreateChatViewController: UIViewController {
                 super.createNewMessage(text: text)
                 
                 // Present the new chat and controller
-                let vc = ChatMessageListVC()
+                let vc = ChatChannelVC()
                 vc.channelController = controller
-                vc.userSuggestionSearchController = controller.client.userSearchController()
                 
                 navController.setViewControllers([navController.viewControllers.first!, vc], animated: true)
             }
@@ -348,7 +347,7 @@ extension CreateChatViewController: UITableViewDelegate, UITableViewDataSource {
                     createDirectMessageChannelWith: selectedUserIds,
                     name: nil,
                     imageURL: nil,
-                    extraData: .defaultValue
+                    extraData: [:]
                 )
         } catch {
             print(error.localizedDescription)

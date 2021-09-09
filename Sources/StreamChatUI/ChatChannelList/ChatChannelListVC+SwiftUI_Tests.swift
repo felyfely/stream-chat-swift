@@ -11,12 +11,15 @@ import XCTest
 @available(iOS 13.0, *)
 class ChatChannelListView_Tests: iOS13TestCase {
     var chatChannelList: SwiftUIViewControllerRepresentable<ChatChannelListVC>!
-    var mockedChannelListController: ChatChannelListController_Mock<NoExtraData>!
+    var mockedChannelListController: ChatChannelListController_Mock!
 
     var channels: [ChatChannel] = []
 
     override func setUp() {
         super.setUp()
+        
+        // TODO: We have to replace default as the components are not injected in SwiftUI views.
+        Components.default = .mock
         mockedChannelListController = ChatChannelListController_Mock.mock()
         chatChannelList = ChatChannelListVC.asView(mockedChannelListController)
 
@@ -34,7 +37,7 @@ class ChatChannelListView_Tests: iOS13TestCase {
 
     func test_customNavigationViewValues_arePopulated() {
         struct CustomView: View {
-            let mockedChannelListController: ChatChannelListController_Mock<NoExtraData>!
+            let mockedChannelListController: ChatChannelListController_Mock!
             let channels: [ChatChannel] = .dummy()
 
             init() {
@@ -53,7 +56,7 @@ class ChatChannelListView_Tests: iOS13TestCase {
                         .navigationBarItems(
                             leading:
                             Button("Tap me!") {}
-                        )
+                        ).environmentObject(Components.mock.asObservableObject)
                 }
             }
         }

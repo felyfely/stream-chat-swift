@@ -5,9 +5,7 @@
 import StreamChat
 import UIKit
 
-public typealias ChatMessageLinkPreviewView = _ChatMessageLinkPreviewView<NoExtraData>
-
-open class _ChatMessageLinkPreviewView<ExtraData: ExtraDataTypes>: _Control, ThemeProvider {
+open class ChatMessageLinkPreviewView: _Control, ThemeProvider {
     public var content: ChatMessageLinkAttachment? { didSet { updateContentIfNeeded() } }
 
     /// Image view showing link's preview image.
@@ -118,7 +116,11 @@ open class _ChatMessageLinkPreviewView<ExtraData: ExtraDataTypes>: _Control, The
 
         authorLabel.textColor = tintColor
 
-        imagePreview.loadImage(from: payload?.previewURL, components: components)
+        components.imageLoader.loadImage(
+            into: imagePreview,
+            url: payload?.previewURL,
+            imageCDN: components.imageCDN
+        )
         imagePreview.isHidden = isImageHidden
 
         authorLabel.text = payload?.author

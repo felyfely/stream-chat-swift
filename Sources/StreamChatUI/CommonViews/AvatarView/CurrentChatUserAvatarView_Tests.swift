@@ -8,7 +8,7 @@ import StreamChatTestTools
 import XCTest
 
 class CurrentChatUserAvatarView_Tests: XCTestCase {
-    var currentUserController: CurrentChatUserController_Mock<NoExtraData>!
+    var currentUserController: CurrentChatUserController_Mock!
     
     override func setUp() {
         super.setUp()
@@ -33,6 +33,7 @@ class CurrentChatUserAvatarView_Tests: XCTestCase {
 
     func test_defaultAppearance() {
         let view = CurrentChatUserAvatarView().withoutAutoresizingMaskConstraints
+        view.components = .mock
         view.controller = currentUserController
         AssertSnapshot(view, variants: .onlyUserInterfaceStyles)
     }
@@ -58,6 +59,7 @@ class CurrentChatUserAvatarView_Tests: XCTestCase {
         }
         
         let view = TestView().withoutAutoresizingMaskConstraints
+        view.components = .mock
         
         // Snapshot empty appearance
         AssertSnapshot(view, variants: .onlyUserInterfaceStyles, suffix: "empty")

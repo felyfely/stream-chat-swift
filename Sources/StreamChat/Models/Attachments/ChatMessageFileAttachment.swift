@@ -9,7 +9,7 @@ import Foundation
 /// The `ChatMessageFileAttachment` attachment will be added to the message automatically
 /// if the message was sent with attached `AnyAttachmentPayload` created with
 /// local URL and `.file` attachment type.
-public typealias ChatMessageFileAttachment = _ChatMessageAttachment<FileAttachmentPayload>
+public typealias ChatMessageFileAttachment = ChatMessageAttachment<FileAttachmentPayload>
 
 /// Represents a payload for attachments with `.file` type.
 public struct FileAttachmentPayload: AttachmentPayload {
@@ -44,7 +44,7 @@ extension FileAttachmentPayload: Encodable {
         var values = extraData ?? [:]
         values[AttachmentCodingKeys.title.rawValue] = title.map { .string($0) }
         values[AttachmentCodingKeys.assetURL.rawValue] = .string(assetURL.absoluteString)
-        values[AttachmentFile.CodingKeys.size.rawValue] = .integer(Int(file.size))
+        values[AttachmentFile.CodingKeys.size.rawValue] = .number(Double(Int(file.size)))
         values[AttachmentFile.CodingKeys.mimeType.rawValue] = file.mimeType.map { .string($0) }
         try values.encode(to: encoder)
     }

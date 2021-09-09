@@ -15,7 +15,8 @@ public protocol GalleryItemPreview {
     var imageView: UIImageView { get }
 }
 
-extension _ChatMessageGalleryView {
+extension ChatMessageGalleryView {
+    @objc(ChatMessageGalleryViewImagePreview)
     open class ImagePreview: _View, ThemeProvider, GalleryItemPreview {
         public var content: ChatMessageImageAttachment? {
             didSet { updateContentIfNeeded() }
@@ -28,7 +29,7 @@ extension _ChatMessageGalleryView {
         public var didTapOnAttachment: ((ChatMessageImageAttachment) -> Void)?
         public var didTapOnUploadingActionButton: ((ChatMessageImageAttachment) -> Void)?
 
-        private var imageTask: ImageTask? {
+        private var imageTask: Cancellable? {
             didSet { oldValue?.cancel() }
         }
 
@@ -86,15 +87,15 @@ extension _ChatMessageGalleryView {
             let attachment = content
 
             loadingIndicator.isVisible = true
-            imageTask = imageView
-                .loadImage(
-                    from: attachment?.payload.imagePreviewURL,
-                    resize: false,
-                    components: components
-                ) { [weak self] _ in
+            imageTask = components.imageLoader.loadImage(
+                into: imageView,
+                url: attachment?.payload.imagePreviewURL,
+                imageCDN: components.imageCDN,
+                completion: { [weak self] _ in
                     self?.loadingIndicator.isVisible = false
                     self?.imageTask = nil
                 }
+            )
 
             uploadingOverlay.content = content?.uploadingState
             uploadingOverlay.isVisible = attachment?.uploadingState != nil

@@ -10,19 +10,19 @@ import XCTest
 class ChatChannelListVC_Tests: XCTestCase {
     var view: ChatChannelListItemView!
     var vc: ChatChannelListVC!
-    var mockedChannelListController: ChatChannelListController_Mock<NoExtraData>!
-    var mockedCurrentUserController: CurrentChatUserController_Mock<NoExtraData>!
-    var mockedRouter: ChatChannelListRouter_Mock<NoExtraData> { vc.router as! ChatChannelListRouter_Mock<NoExtraData> }
+    var mockedChannelListController: ChatChannelListController_Mock!
+    var mockedCurrentUserController: CurrentChatUserController_Mock!
+    var mockedRouter: ChatChannelListRouter_Mock { vc.router as! ChatChannelListRouter_Mock }
 
     var channels: [ChatChannel] = []
     
     // Workaround for setting mockedCurrentUserController to userAvatarView.
     class TestChatChannelListVC: ChatChannelListVC {
-        var mockedCurrentUserController: CurrentChatUserController_Mock<NoExtraData>?
+        var mockedCurrentUserController: CurrentChatUserController_Mock?
         
         override func setUp() {
             super.setUp()
-            
+            userAvatarView.components = .mock
             userAvatarView.controller = mockedCurrentUserController
         }
     }
@@ -38,12 +38,13 @@ class ChatChannelListVC_Tests: XCTestCase {
         )
 
         let testVC = TestChatChannelListVC()
+        testVC.components = .mock
         testVC.mockedCurrentUserController = mockedCurrentUserController
         vc = testVC
         vc.controller = mockedChannelListController
         
-        var components = Components()
-        components.channelListRouter = ChatChannelListRouter_Mock<NoExtraData>.self
+        var components = Components.mock
+        components.channelListRouter = ChatChannelListRouter_Mock.self
         vc.components = components
 
         channels = .dummy()
@@ -113,9 +114,8 @@ class ChatChannelListVC_Tests: XCTestCase {
             }
         }
 
-        var components = Components()
+        var components = Components.mock
         components.channelCellSeparator = TestView.self
-
         vc.components = components
 
         mockedChannelListController.simulateInitial(
@@ -145,7 +145,7 @@ class ChatChannelListVC_Tests: XCTestCase {
         let vc = TestView()
         vc.controller = mockedChannelListController
         
-        var components = Components()
+        var components = Components.mock
         components.channelCellSeparator = TestSeparatorView.self
         vc.components = components
 
@@ -181,16 +181,6 @@ class ChatChannelListVC_Tests: XCTestCase {
         XCTAssertEqual(mockedRouter.openChat_channelId, vc.controller.channels.first?.cid)
     }
 
-    func test_channelList_loadsNextChannels_whenScrolledToBottom() {
-        let channelListVC = ChatChannelListVC()
-        channelListVC.controller = mockedChannelListController
-        // There are just 3 items mocked, so it's okay to add content offset of 1000,
-        // because the scrollView will definitely be scrolled most-down
-        channelListVC.collectionView.contentOffset = .init(x: 0, y: 1000)
-        channelListVC.scrollViewDidEndDecelerating(channelListVC.collectionView)
-        XCTAssertTrue(mockedChannelListController.loadNextChannelsIsCalled)
-    }
-
     func test_usesCorrectComponentsTypes_whenCustomTypesDefined() {
         // Create default ChatChannelListVC which has everything default from `Components`
         let channelListVC = ChatChannelListVC()
@@ -213,7 +203,7 @@ extension ChatChannelListVC_Tests {
         let channelListVC = FakeChatChannelListVC()
         channelListVC.controller = mockedChannelListController
 
-        let noConflictChanges: [ListChange<_ChatChannel<NoExtraData>>] = [
+        let noConflictChanges: [ListChange<ChatChannel>] = [
             .update(.mock(cid: .unique), index: .init(row: 1, section: 0)),
             .update(.mock(cid: .unique), index: .init(row: 2, section: 0)),
             .insert(.mock(cid: .unique), index: .init(row: 3, section: 0)),
@@ -234,7 +224,7 @@ extension ChatChannelListVC_Tests {
         let channelListVC = FakeChatChannelListVC()
         channelListVC.controller = mockedChannelListController
 
-        let hasConflictChanges: [ListChange<_ChatChannel<NoExtraData>>] = [
+        let hasConflictChanges: [ListChange<ChatChannel>] = [
             .update(.mock(cid: .unique), index: .init(row: 1, section: 0)),
             .update(.mock(cid: .unique), index: .init(row: 2, section: 0)),
             .insert(.mock(cid: .unique), index: .init(row: 3, section: 0)),
@@ -255,7 +245,7 @@ extension ChatChannelListVC_Tests {
         let channelListVC = FakeChatChannelListVC()
         channelListVC.controller = mockedChannelListController
 
-        let hasConflictChanges: [ListChange<_ChatChannel<NoExtraData>>] = [
+        let hasConflictChanges: [ListChange<ChatChannel>] = [
             .update(.mock(cid: .unique), index: .init(row: 1, section: 0)),
             .update(.mock(cid: .unique), index: .init(row: 2, section: 0)),
             .insert(.mock(cid: .unique), index: .init(row: 3, section: 0)),
@@ -276,7 +266,7 @@ extension ChatChannelListVC_Tests {
         let channelListVC = FakeChatChannelListVC()
         channelListVC.controller = mockedChannelListController
 
-        let hasConflictChanges: [ListChange<_ChatChannel<NoExtraData>>] = [
+        let hasConflictChanges: [ListChange<ChatChannel>] = [
             .update(.mock(cid: .unique), index: .init(row: 1, section: 0)),
             .update(.mock(cid: .unique), index: .init(row: 2, section: 0)),
             .insert(.mock(cid: .unique), index: .init(row: 3, section: 0)),
@@ -297,7 +287,7 @@ extension ChatChannelListVC_Tests {
         let channelListVC = FakeChatChannelListVC()
         channelListVC.controller = mockedChannelListController
 
-        let hasConflictChanges: [ListChange<_ChatChannel<NoExtraData>>] = [
+        let hasConflictChanges: [ListChange<ChatChannel>] = [
             .update(.mock(cid: .unique), index: .init(row: 1, section: 0)),
             .update(.mock(cid: .unique), index: .init(row: 2, section: 0)),
             .insert(.mock(cid: .unique), index: .init(row: 3, section: 0)),

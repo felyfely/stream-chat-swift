@@ -9,7 +9,7 @@ import XCTest
 
 class ChatMessageActionsVC_Tests: XCTestCase {
     private var vc: ChatMessageActionsVC!
-    private var chatMessageController: ChatMessageController_Mock<NoExtraData>!
+    private var chatMessageController: ChatMessageController_Mock!
     
     override func setUp() {
         super.setUp()
@@ -74,6 +74,18 @@ class ChatMessageActionsVC_Tests: XCTestCase {
         vc.components = components
 
         XCTAssert(vc.alertsRouter is TestAlertsRouter)
+    }
+
+    func test_messageActions_whenMutesEnabled_containsMuteAction() {
+        vc.channelConfig = .mock(mutesEnabled: true)
+
+        XCTAssertTrue(vc.messageActions.contains(where: { $0 is MuteUserActionItem }))
+    }
+
+    func test_messageActions_whenMutesDisabled_doesNotContainMuteAction() {
+        vc.channelConfig = .mock(mutesEnabled: false)
+
+        XCTAssertFalse(vc.messageActions.contains(where: { $0 is MuteUserActionItem }))
     }
 }
 

@@ -38,13 +38,11 @@ class ChannelReadDTO: NSManagedObject {
     }
     
     static func load(userId: String, context: NSManagedObjectContext) -> [ChannelReadDTO] {
-        let request = fetchRequest(userId: userId)
-        return try! context.fetch(request)
+        load(by: fetchRequest(userId: userId), context: context)
     }
     
     static func load(cid: ChannelId, userId: String, context: NSManagedObjectContext) -> ChannelReadDTO? {
-        let request = fetchRequest(for: cid, userId: userId)
-        return try! context.fetch(request).first
+        load(by: fetchRequest(for: cid, userId: userId), context: context).first
     }
     
     static func loadOrCreate(cid: ChannelId, userId: String, context: NSManagedObjectContext) -> ChannelReadDTO {
@@ -59,7 +57,7 @@ class ChannelReadDTO: NSManagedObject {
     }
     
     /// Snapshots the current state of `ChannelReadDTO` and returns an immutable model object from it.
-    func asModel<ExtraData: ExtraDataTypes>() -> _ChatChannelRead<ExtraData> { .create(fromDTO: self) }
+    func asModel() -> ChatChannelRead { .create(fromDTO: self) }
 }
 
 // MARK: Saving and loading the data
@@ -81,8 +79,8 @@ extension NSManagedObjectContext {
         return dto
     }
     
-    func saveChannelRead<ExtraData: ExtraDataTypes>(
-        payload: ChannelReadPayload<ExtraData>,
+    func saveChannelRead(
+        payload: ChannelReadPayload,
         for cid: ChannelId
     ) throws -> ChannelReadDTO {
         let dto = ChannelReadDTO.loadOrCreate(cid: cid, userId: payload.user.id, context: self)
@@ -104,8 +102,8 @@ extension NSManagedObjectContext {
     }
 }
 
-extension _ChatChannelRead {
-    fileprivate static func create(fromDTO dto: ChannelReadDTO) -> _ChatChannelRead {
+extension ChatChannelRead {
+    fileprivate static func create(fromDTO dto: ChannelReadDTO) -> ChatChannelRead {
         .init(lastReadAt: dto.lastReadAt, unreadMessagesCount: Int(dto.unreadMessageCount), user: dto.user.asModel())
     }
 }

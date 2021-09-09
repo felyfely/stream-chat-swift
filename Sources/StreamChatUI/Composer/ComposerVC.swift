@@ -2,6 +2,7 @@
 // Copyright © 2021 Stream.io Inc. All rights reserved.
 //
 
+import Foundation
 import StreamChat
 import UIKit
 
@@ -9,11 +10,6 @@ import UIKit
 public enum AttachmentValidationError: Error {
     /// The size of the attachment exceeds the max file size
     case maxFileSizeExceeded
-}
-
-/// The delegate of the ComposerVC that notifies composer events.
-public protocol ComposerVCDelegate: AnyObject {
-    func composerDidCreateNewMessage()
 }
 
 /// The possible composer states. An Enum is not used so it does not cause
@@ -32,10 +28,7 @@ public struct ComposerState: RawRepresentable, Equatable {
 }
 
 /// A view controller that manages the composer view.
-public typealias ComposerVC = _ComposerVC<NoExtraData>
-
-/// A view controller that manages the composer view.
-open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
+open class ComposerVC: _ViewController,
     ThemeProvider,
     UITextViewDelegate,
     UIImagePickerControllerDelegate,
@@ -49,15 +42,15 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         /// The state of the composer.
         public let state: ComposerState
         /// The editing message if the composer is currently editing a message.
-        public let editingMessage: _ChatMessage<ExtraData>?
+        public let editingMessage: ChatMessage?
         /// The quoting message if the composer is currently quoting a message.
-        public let quotingMessage: _ChatMessage<ExtraData>?
+        public let quotingMessage: ChatMessage?
         /// The thread parent message if the composer is currently replying in a thread.
-        public var threadMessage: _ChatMessage<ExtraData>?
+        public var threadMessage: ChatMessage?
         /// The attachments of the message.
         public var attachments: [AnyAttachmentPayload]
         /// The mentioned users in the message.
-        public var mentionedUsers: Set<_ChatUser<ExtraData.User>>
+        public var mentionedUsers: Set<ChatUser>
         /// The command of the message.
         public var command: Command?
 
@@ -74,11 +67,11 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         public init(
             text: String,
             state: ComposerState,
-            editingMessage: _ChatMessage<ExtraData>?,
-            quotingMessage: _ChatMessage<ExtraData>?,
-            threadMessage: _ChatMessage<ExtraData>?,
+            editingMessage: ChatMessage?,
+            quotingMessage: ChatMessage?,
+            threadMessage: ChatMessage?,
             attachments: [AnyAttachmentPayload],
-            mentionedUsers: Set<_ChatUser<ExtraData.User>>,
+            mentionedUsers: Set<ChatUser>,
             command: Command?
         ) {
             self.text = text
@@ -122,7 +115,7 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         /// Sets the content state to editing a message.
         ///
         /// - Parameter message: The message that the composer will edit.
-        public mutating func editMessage(_ message: _ChatMessage<ExtraData>) {
+        public mutating func editMessage(_ message: ChatMessage) {
             self = .init(
                 text: message.text,
                 state: .edit,
@@ -138,7 +131,7 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         /// Sets the content state to quoting a message.
         ///
         /// - Parameter message: The message that the composer will quote.
-        public mutating func quoteMessage(_ message: _ChatMessage<ExtraData>) {
+        public mutating func quoteMessage(_ message: ChatMessage) {
             self = .init(
                 text: text,
                 state: .quote,
@@ -159,9 +152,6 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         }
     }
 
-    /// The delegate of the ComposerVC that notifies composer events.
-    open weak var delegate: ComposerVCDelegate?
-
     /// A symbol that is used to recognise when the user is mentioning a user.
     open var mentionSymbol = "@"
 
@@ -173,16 +163,24 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         channelConfig?.commands.isEmpty == false
     }
 
+    /// A Boolean value indicating whether the user mentions are enabled.
+    open var isMentionsEnabled: Bool {
+        true
+    }
+
     /// A Boolean value indicating whether the attachments are enabled.
     open var isAttachmentsEnabled: Bool {
         channelConfig?.uploadsEnabled == true
     }
 
+    /// When enabled mentions search users across the entire app instead of searching
+    open private(set) lazy var mentionAllAppUsers: Bool = components.mentionAllAppUsers
+
     /// A controller to search users and that is used to populate the mention suggestions.
-    open var userSearchController: _ChatUserSearchController<ExtraData>!
+    open var userSearchController: ChatUserSearchController!
 
     /// A controller that manages the channel that the composer is creating content for.
-    open var channelController: _ChatChannelController<ExtraData>?
+    open var channelController: ChatChannelController?
 
     /// The channel config. If it's a new channel, an empty config should be created. (Not yet supported right now)
     public var channelConfig: ChannelConfig? {
@@ -205,17 +203,17 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
     )
 
     /// The view of the composer.
-    open private(set) lazy var composerView: _ComposerView<ExtraData> = components
+    open private(set) lazy var composerView: ComposerView = components
         .messageComposerView.init()
         .withoutAutoresizingMaskConstraints
 
     /// The view controller that shows the suggestions when the user is typing.
-    open private(set) lazy var suggestionsVC: _ChatSuggestionsVC<ExtraData> = components
+    open private(set) lazy var suggestionsVC: ChatSuggestionsVC = components
         .suggestionsVC
         .init()
     
     /// The view controller that shows the suggestions when the user is typing.
-    open private(set) lazy var attachmentsVC: _AttachmentsPreviewVC<ExtraData> = components
+    open private(set) lazy var attachmentsVC: AttachmentsPreviewVC = components
         .messageComposerAttachmentsVC
         .init()
 
@@ -235,10 +233,6 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         picker.allowsMultipleSelection = true
         return picker
     }()
-    
-    public func setDelegate(_ delegate: ComposerVCDelegate) {
-        self.delegate = delegate
-    }
 
     override open func setUp() {
         super.setUp()
@@ -354,12 +348,12 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
             self.composerView.bottomContainer.isHidden = !self.content.isInsideThread
         }
 
-        if let typingCommand = typingCommand(in: composerView.inputMessageView.textView) {
+        if isCommandsEnabled, let typingCommand = typingCommand(in: composerView.inputMessageView.textView) {
             showCommandSuggestions(for: typingCommand)
             return
         }
 
-        if let (typingMention, mentionRange) = typingMention(in: composerView.inputMessageView.textView) {
+        if isMentionsEnabled, let (typingMention, mentionRange) = typingMention(in: composerView.inputMessageView.textView) {
             showMentionSuggestions(for: typingMention, mentionRange: mentionRange)
             return
         }
@@ -510,9 +504,7 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
                 mentionedUserIds: content.mentionedUsers.map(\.id),
                 showReplyInChannel: composerView.checkboxControl.isSelected,
                 quotedMessageId: content.quotingMessage?.id
-            ) { _ in
-                self.delegate?.composerDidCreateNewMessage()
-            }
+            )
             return
         }
 
@@ -522,9 +514,7 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
             attachments: content.attachments,
             mentionedUserIds: content.mentionedUsers.map(\.id),
             quotedMessageId: content.quotingMessage?.id
-        ) { _ in
-            self.delegate?.composerDidCreateNewMessage()
-        }
+        )
     }
 
     /// Updates an existing message.
@@ -590,7 +580,7 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
             return
         }
 
-        let dataSource = _ChatMessageComposerSuggestionsCommandDataSource<ExtraData>(
+        let dataSource = ChatMessageComposerSuggestionsCommandDataSource(
             with: commandHints,
             collectionView: suggestionsVC.collectionView
         )
@@ -615,8 +605,8 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
     ///
     /// - Parameter typingMention: The potential user mention the current user is typing.
     /// - Returns: `_UserListQuery` instance that will be used for searching users.
-    open func queryForMentionSuggestionsSearch(typingMention term: String) -> _UserListQuery<ExtraData.User> {
-        _UserListQuery<ExtraData.User>(
+    open func queryForMentionSuggestionsSearch(typingMention term: String) -> UserListQuery {
+        UserListQuery(
             filter: .or([
                 .autocomplete(.name, text: term),
                 .autocomplete(.id, text: term)
@@ -630,20 +620,41 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
     ///   - typingMention: The potential user mention the current user is typing.
     ///   - mentionRange: The position where the current user is typing a mention to it can be replaced with the suggestion.
     open func showMentionSuggestions(for typingMention: String, mentionRange: NSRange) {
-        userSearchController.search(
-            query: queryForMentionSuggestionsSearch(typingMention: typingMention)
-        )
-        let dataSource = _ChatMessageComposerSuggestionsMentionDataSource(
+        guard let channel = channelController?.channel else {
+            return
+        }
+        guard let currentUserId = channelController?.client.currentUserId else {
+            return
+        }
+        
+        var usersCache: [ChatUser] = []
+
+        if mentionAllAppUsers {
+            userSearchController.search(
+                query: queryForMentionSuggestionsSearch(typingMention: typingMention)
+            )
+        } else {
+            usersCache = searchUsers(
+                channel.lastActiveWatchers.map { $0 } + channel.lastActiveMembers.map { $0 },
+                by: typingMention,
+                excludingId: currentUserId
+            )
+        }
+
+        let dataSource = ChatMessageComposerSuggestionsMentionDataSource(
             collectionView: suggestionsVC.collectionView,
-            searchController: userSearchController
+            searchController: userSearchController,
+            usersCache: usersCache
         )
         suggestionsVC.dataSource = dataSource
         suggestionsVC.didSelectItemAt = { [weak self] userIndex in
             guard let self = self else { return }
+            guard dataSource.usersCache.count >= userIndex else {
+                return
+            }
 
             let textView = self.composerView.inputMessageView.textView
-            let user = self.userSearchController.users[userIndex]
-
+            let user = dataSource.usersCache[userIndex]
             let text = textView.text as NSString
             let mentionText = self.mentionText(for: user)
             let newText = text.replacingCharacters(in: mentionRange, with: mentionText)
@@ -661,7 +672,7 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
     }
     
     /// Provides the mention text for composer text field, when the user selects a mention suggestion.
-    open func mentionText(for user: _ChatUser<ExtraData.User>) -> String {
+    open func mentionText(for user: ChatUser) -> String {
         if let name = user.name, !name.isEmpty {
             return name.lowercased()
         } else {
@@ -671,15 +682,16 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
 
     /// Shows the suggestions view
     open func showSuggestions() {
-        if !suggestionsVC.isPresented {
-            addChildViewController(suggestionsVC, targetView: view)
-            
+        if !suggestionsVC.isPresented, let parent = parent {
+            parent.addChildViewController(suggestionsVC, targetView: parent.view)
+
             let suggestionsView = suggestionsVC.view!
             suggestionsView.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                suggestionsView.leadingAnchor.pin(equalTo: view.leadingAnchor),
-                suggestionsView.trailingAnchor.pin(equalTo: view.trailingAnchor),
-                composerView.topAnchor.pin(equalToSystemSpacingBelow: suggestionsView.bottomAnchor)
+                suggestionsView.leadingAnchor.pin(equalTo: parent.view.leadingAnchor),
+                suggestionsView.trailingAnchor.pin(equalTo: parent.view.trailingAnchor),
+                composerView.topAnchor.pin(equalToSystemSpacingBelow: suggestionsView.bottomAnchor),
+                suggestionsView.topAnchor.pin(greaterThanOrEqualTo: parent.view.safeAreaLayoutGuide.topAnchor)
             ])
         }
     }
@@ -794,5 +806,33 @@ open class _ComposerVC<ExtraData: ExtraDataTypes>: _ViewController,
         } catch {
             log.assertionFailure(error.localizedDescription)
         }
+    }
+}
+
+/// searchUsers does an autocomplete search on a list of ChatUser and returns users with `id` or `name` containing the search string
+/// results are returned sorted by their edit distance from the searched string
+/// distance is calculated using the levenshtein algorithm
+/// both search and name strings are normalized (lowercased and by replacing diacritics)
+func searchUsers(_ users: [ChatUser], by searchInput: String, excludingId: String? = nil) -> [ChatUser] {
+    let normalize: (String) -> String = {
+        $0.lowercased().folding(options: .diacriticInsensitive, locale: .current)
+    }
+
+    let searchInput = normalize(searchInput)
+
+    let matchingUsers = users.filter { $0.id != excludingId }
+        .filter { searchInput == "" || $0.id.contains(searchInput) || (normalize($0.name ?? "").contains(searchInput)) }
+
+    let distance: (ChatUser) -> Int = {
+        min($0.id.levenshtein(searchInput), $0.name?.levenshtein(searchInput) ?? 1000)
+    }
+
+    return Array(Set(matchingUsers)).sorted {
+        /// a tie breaker is needed here to avoid results from flickering
+        let dist = distance($0) - distance($1)
+        if dist == 0 {
+            return $0.id < $1.id
+        }
+        return dist < 0
     }
 }

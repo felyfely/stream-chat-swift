@@ -9,7 +9,7 @@ import Foundation
 /// The `ChatMessageAudioAttachment` attachment will be added to the message automatically
 /// if the message was sent with attached `AnyAttachmentPayload` created with
 /// local URL and `.audio` attachment type.
-public typealias ChatMessageAudioAttachment = _ChatMessageAttachment<AudioAttachmentPayload>
+public typealias ChatMessageAudioAttachment = ChatMessageAttachment<AudioAttachmentPayload>
 
 /// Represents a payload for attachments with `.media` type.
 public struct AudioAttachmentPayload: AttachmentPayload {
@@ -44,7 +44,7 @@ extension AudioAttachmentPayload: Encodable {
         var values = extraData ?? [:]
         values[AttachmentCodingKeys.title.rawValue] = title.map { .string($0) }
         values[AttachmentCodingKeys.assetURL.rawValue] = .string(audioURL.absoluteString)
-        values[AttachmentFile.CodingKeys.size.rawValue] = .integer(Int(file.size))
+        values[AttachmentFile.CodingKeys.size.rawValue] = .number(Double(file.size))
         values[AttachmentFile.CodingKeys.mimeType.rawValue] = file.mimeType.map { .string($0) }
         try values.encode(to: encoder)
     }

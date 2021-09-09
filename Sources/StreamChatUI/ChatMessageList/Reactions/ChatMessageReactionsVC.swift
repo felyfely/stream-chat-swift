@@ -6,11 +6,8 @@ import StreamChat
 import UIKit
 
 /// Controller for the message reactions picker as a list of toggles
-public typealias ChatMessageReactionsVC = _ChatMessageReactionsVC<NoExtraData>
-
-/// Controller for the message reactions picker as a list of toggles
-open class _ChatMessageReactionsVC<ExtraData: ExtraDataTypes>: _ViewController, ThemeProvider {
-    public var messageController: _ChatMessageController<ExtraData>!
+open class ChatMessageReactionsVC: _ViewController, ThemeProvider, ChatMessageControllerDelegate {
+    public var messageController: ChatMessageController!
 
     // MARK: - Subviews
 
@@ -23,8 +20,7 @@ open class _ChatMessageReactionsVC<ExtraData: ExtraDataTypes>: _ViewController, 
 
     override open func setUp() {
         super.setUp()
-
-        messageController.setDelegate(self)
+        messageController.delegate = self
     }
 
     override open func setUpLayout() {
@@ -56,7 +52,7 @@ open class _ChatMessageReactionsVC<ExtraData: ExtraDataTypes>: _ViewController, 
 
     // MARK: - Actions
 
-    public func toggleReaction(_ reaction: MessageReactionType) {
+    open func toggleReaction(_ reaction: MessageReactionType) {
         guard let message = messageController.message else { return }
         
         let completion: (Error?) -> Void = { [weak self] _ in
@@ -68,14 +64,12 @@ open class _ChatMessageReactionsVC<ExtraData: ExtraDataTypes>: _ViewController, 
             ? messageController.deleteReaction(reaction, completion: completion)
             : messageController.addReaction(reaction, completion: completion)
     }
-}
-
-// MARK: - _MessageControllerDelegate
-
-extension _ChatMessageReactionsVC: _ChatMessageControllerDelegate {
-    public func messageController(
-        _ controller: _ChatMessageController<ExtraData>,
-        didChangeMessage change: EntityChange<_ChatMessage<ExtraData>>
+    
+    // MARK: - MessageControllerDelegate
+    
+    open func messageController(
+        _ controller: ChatMessageController,
+        didChangeMessage change: EntityChange<ChatMessage>
     ) {
         switch change {
         case .create, .remove: break
