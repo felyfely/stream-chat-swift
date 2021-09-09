@@ -80,7 +80,7 @@ class UserPayload: Decodable {
         role = try container.decode(UserRole.self, forKey: .role)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        lastActiveAt = try container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
+        lastActiveAt = try? container.decodeIfPresent(Date.self, forKey: .lastActiveAt)
         isOnline = try container.decode(Bool.self, forKey: .isOnline)
         isInvisible = try container.decodeIfPresent(Bool.self, forKey: .isInvisible) ?? false
         isBanned = try container.decodeIfPresent(Bool.self, forKey: .isBanned) ?? false

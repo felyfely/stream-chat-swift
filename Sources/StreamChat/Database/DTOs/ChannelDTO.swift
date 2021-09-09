@@ -44,6 +44,7 @@ class ChannelDTO: NSManagedObject {
     
     @NSManaged var isFrozen: Bool
     @NSManaged var cooldownDuration: Int
+    @NSManaged var waitingForUserId: String?
 
     // MARK: - Queries
 
@@ -163,6 +164,11 @@ extension NSManagedObjectContext {
 
         dto.isFrozen = payload.isFrozen
         dto.cooldownDuration = payload.cooldownDuration
+        if case let .string(waitingForUserId) = payload.extraData["waiting_for_user_id"] {
+            dto.waitingForUserId = waitingForUserId
+        } else {
+            dto.waitingForUserId = nil
+        }
 
         dto.team = try payload.team.map { try saveTeam(teamId: $0) }
 
@@ -262,6 +268,15 @@ extension ChannelDTO {
         // This is not 100% correct and should be ideally solved differently. This makes it impossible
         // to query for hidden channels from the SDK. However, it's the limitation other platforms have, too,
         // so this feels like a good-enough solution for now.
+        var optPredicate: NSPredicate?
+        if let filterV = query.filter.value as? [Filter<ChannelListFilterScope>],
+           let waitingForFilter = filterV.first(where: { filt in
+                filt.key == "waiting_for_user_id"
+            }),
+           let waitingId = waitingForFilter.value as? String {
+            optPredicate = NSPredicate(format: "waitingForUserId == %@", waitingId)
+        }
+
         let notHidden = NSCompoundPredicate(orPredicateWithSubpredicates: [
             NSPredicate(format: "hiddenAt == nil"),
             NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -270,9 +285,13 @@ extension ChannelDTO {
             ])
         ])
 
-        request.predicate = NSCompoundPredicate(type: .and, subpredicates: [
+        var subpredicates = [
             matchingQuery, notDeleted, notHidden
-        ])
+        ]
+        if let pre = optPredicate {
+            subpredicates.append(pre)
+        }
+        request.predicate = NSCompoundPredicate(type: .and, subpredicates: subpredicates)
         return request
     }
 
