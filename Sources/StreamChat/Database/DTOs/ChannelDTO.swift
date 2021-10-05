@@ -287,8 +287,8 @@ extension ChannelDTO {
            let typeFilter = filterV.first(where: { filt in
             filt.key == "type" && filt.`operator` == FilterOperator.equal.rawValue
            }),
-           let typeValue = typeFilter.value as? String {
-            channelTypePredicate = NSPredicate(format: "type == %@", typeValue)
+           let typeValue = typeFilter.value as? ChannelType {
+            channelTypePredicate = NSPredicate(format: "type == %@", typeValue.rawValue)
         }
 
         let notHidden = NSCompoundPredicate(orPredicateWithSubpredicates: [
