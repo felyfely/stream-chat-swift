@@ -69,18 +69,42 @@ public class ChatChannelListController: DataController, DelegateCallable, DataSt
             { $0.asModel() }
         )
         
-        observer.onChange = { [unowned self] changes in
-            self.delegateCallback {
+        observer.onChange = { [weak self] changes in
+            self?.delegateCallback { [weak self] in
+                guard let self = self else {
+                    log.warning("Callback called while self is nil")
+                    return
+                }
                 $0.controller(self, didChangeChannels: changes)
             }
+            self?.handleLinkedChannels(changes)
         }
 
-        observer.onWillChange = { [unowned self] in
-            self.delegateCallback {
+        observer.onWillChange = { [weak self] in
+            self?.delegateCallback { [weak self] in
+                guard let self = self else {
+                    log.warning("Callback called while self is nil")
+                    return
+                }
+
                 $0.controllerWillChangeChannels(self)
             }
         }
 
+        return observer
+    }()
+    
+    lazy var updatedChannelObserver: ListDatabaseObserver<ChatChannel, ChannelDTO> = {
+        let observer = self.environment.createChannelListDatabaseObserver(
+            client.databaseContainer.viewContext,
+            ChannelDTO.channelsFetchRequest(notLinkedTo: query),
+            { $0.asModel() }
+        )
+        
+        observer.onChange = { [weak self] changes in
+            self?.handleUnlinkedChannels(changes)
+        }
+        
         return observer
     }()
     
@@ -126,7 +150,12 @@ public class ChatChannelListController: DataController, DelegateCallable, DataSt
             self.connectionObserver = EventObserver(
                 notificationCenter: center,
                 transform: { $0 as? ConnectionStatusUpdated },
-                callback: { [unowned self] in
+                callback: { [weak self] in
+                    guard let self = self else {
+                        log.warning("Callback called while self is nil")
+                        return
+                    }
+
                     switch $0.webSocketConnectionState {
                     case .connected:
                         self.updateChannelList(trumpExistingChannels: self.channels.count > self.requestedChannelsLimit)
@@ -167,6 +196,7 @@ public class ChatChannelListController: DataController, DelegateCallable, DataSt
         guard state == .initialized else { return }
         do {
             try channelListObserver.startObserving()
+            try updatedChannelObserver.startObserving()
             state = .localDataFetched
         } catch {
             state = .localDataFetchFailed(ClientError(with: error))
@@ -181,6 +211,72 @@ public class ChatChannelListController: DataController, DelegateCallable, DataSt
     ///
     public func setDelegate<Delegate: ChatChannelListControllerDelegate>(_ delegate: Delegate) {
         multicastDelegate.mainDelegate = AnyChannelListControllerDelegate(delegate)
+    }
+    
+    private func handleUnlinkedChannels(_ changes: [ListChange<ChatChannel>]) {
+        guard state == .remoteDataFetched else {
+            log.debug("Ignoring inserted/updated unlinked channels due to query \(query) not being synced.")
+            return
+        }
+        
+        let channels = changes.compactMap { change -> ChatChannel? in
+            switch change {
+            case let .insert(channel, _):
+                return (delegate?.controller(self, shouldAddNewChannelToList: channel) ?? true) ? channel : nil
+            case let .update(channel, _):
+                return (delegate?.controller(self, shouldListUpdatedChannel: channel) ?? true) ? channel : nil
+            default: return nil
+            }
+        }
+        link(channels: channels)
+    }
+    
+    private func handleLinkedChannels(_ changes: [ListChange<ChatChannel>]) {
+        let channels = changes.compactMap { change -> ChatChannel? in
+            switch change {
+            case let .update(channel, _):
+                // We unlink the channels where `shouldListUpdatedChannel` returns `false`
+                return (delegate?.controller(self, shouldListUpdatedChannel: channel) ?? true) ? nil : channel
+            default: return nil
+            }
+        }
+        unlink(channels: channels)
+    }
+    
+    private func link(channels: [ChatChannel]) {
+        guard !channels.isEmpty else { return }
+        client.databaseContainer.write { session in
+            guard let queryDTO = session.channelListQuery(filterHash: self.query.filter.filterHash) else {
+                log.debug("Channel list query has not yet created \(self.query)")
+                return
+            }
+            
+            for channel in channels {
+                guard let channelDTO = session.channel(cid: channel.cid) else {
+                    log.error("Channel \(channel.cid) cannot be found in database.")
+                    continue
+                }
+                queryDTO.channels.insert(channelDTO)
+            }
+        }
+    }
+    
+    private func unlink(channels: [ChatChannel]) {
+        guard !channels.isEmpty else { return }
+        client.databaseContainer.write { session in
+            guard let queryDTO = session.channelListQuery(filterHash: self.query.filter.filterHash) else {
+                log.debug("Channel list query has not yet created \(self.query)")
+                return
+            }
+            
+            for channel in channels {
+                guard let channelDTO = session.channel(cid: channel.cid) else {
+                    log.error("Channel \(channel.cid) cannot be found in database.")
+                    continue
+                }
+                queryDTO.channels.remove(channelDTO)
+            }
+        }
     }
 
     // MARK: - Actions
@@ -272,6 +368,30 @@ public protocol ChatChannelListControllerDelegate: DataControllerStateDelegate {
         _ controller: ChatChannelListController,
         didChangeChannels changes: [ListChange<ChatChannel>]
     )
+    
+    /// The controller asks the delegate if the newly inserted `ChatChannel` should be linked to this Controller's query.
+    /// Defaults to `true`
+    /// - Parameters:
+    ///   - controller: The controller,
+    ///   - shouldAddNewChannelToList: The newly inserted `ChatChannel` instance. This instance is not linked to the controller's query.
+    /// - Returns:
+    ///     `true` if channel should be added to the list of observed channels, `false` if channel doesn't exists in this list.
+    func controller(
+        _ controller: ChatChannelListController,
+        shouldAddNewChannelToList channel: ChatChannel
+    ) -> Bool
+    
+    /// The controller asks the delegate if the newly updated `ChatChannel` should be linked to this Controller's query.
+    /// Defaults to `true`
+    /// - Parameters:
+    ///   - controller: The controller,
+    ///   - shouldListUpdatedChannel: The newly updated `ChatChannel` instance.
+    /// - Returns:
+    ///     `true` if channel should be added to the list of observed channels, `false` if channel doesn't exists in this list.
+    func controller(
+        _ controller: ChatChannelListController,
+        shouldListUpdatedChannel channel: ChatChannel
+    ) -> Bool
 }
 
 public extension ChatChannelListControllerDelegate {
@@ -296,6 +416,8 @@ class AnyChannelListControllerDelegate: ChatChannelListControllerDelegate {
     private var _controllerDidChangeChannels: (ChatChannelListController, [ListChange<ChatChannel>])
         -> Void
     private var _controllerDidChangeState: (DataController, DataController.State) -> Void
+    private var _controllerShouldAddNewChannelToList: (ChatChannelListController, ChatChannel) -> Bool
+    private var _controllerShouldListUpdatedChannel: (ChatChannelListController, ChatChannel) -> Bool
     
     weak var wrappedDelegate: AnyObject?
     
@@ -304,12 +426,16 @@ class AnyChannelListControllerDelegate: ChatChannelListControllerDelegate {
         controllerDidChangeState: @escaping (DataController, DataController.State) -> Void,
         controllerWillChangeChannels: @escaping (ChatChannelListController) -> Void,
         controllerDidChangeChannels: @escaping (ChatChannelListController, [ListChange<ChatChannel>])
-            -> Void
+            -> Void,
+        controllerShouldAddNewChannelToList: @escaping (ChatChannelListController, ChatChannel) -> Bool,
+        controllerShouldListUpdatedChannel: @escaping (ChatChannelListController, ChatChannel) -> Bool
     ) {
         self.wrappedDelegate = wrappedDelegate
         _controllerDidChangeState = controllerDidChangeState
         _controllerWillChangeChannels = controllerWillChangeChannels
         _controllerDidChangeChannels = controllerDidChangeChannels
+        _controllerShouldAddNewChannelToList = controllerShouldAddNewChannelToList
+        _controllerShouldListUpdatedChannel = controllerShouldListUpdatedChannel
     }
 
     func controller(_ controller: DataController, didChangeState state: DataController.State) {
@@ -326,16 +452,13 @@ class AnyChannelListControllerDelegate: ChatChannelListControllerDelegate {
     ) {
         _controllerDidChangeChannels(controller, changes)
     }
-}
-
-extension AnyChannelListControllerDelegate {
-    convenience init<Delegate: ChatChannelListControllerDelegate>(_ delegate: Delegate) {
-        self.init(
-            wrappedDelegate: delegate,
-            controllerDidChangeState: { [weak delegate] in delegate?.controller($0, didChangeState: $1) },
-            controllerWillChangeChannels: { [weak delegate] in delegate?.controllerWillChangeChannels($0) },
-            controllerDidChangeChannels: { [weak delegate] in delegate?.controller($0, didChangeChannels: $1) }
-        )
+    
+    func controller(_ controller: ChatChannelListController, shouldAddNewChannelToList channel: ChatChannel) -> Bool {
+        _controllerShouldAddNewChannelToList(controller, channel)
+    }
+    
+    func controller(_ controller: ChatChannelListController, shouldListUpdatedChannel channel: ChatChannel) -> Bool {
+        _controllerShouldListUpdatedChannel(controller, channel)
     }
 }
 
@@ -345,7 +468,13 @@ extension AnyChannelListControllerDelegate {
             wrappedDelegate: delegate,
             controllerDidChangeState: { [weak delegate] in delegate?.controller($0, didChangeState: $1) },
             controllerWillChangeChannels: { [weak delegate] in delegate?.controllerWillChangeChannels($0) },
-            controllerDidChangeChannels: { [weak delegate] in delegate?.controller($0, didChangeChannels: $1) }
+            controllerDidChangeChannels: { [weak delegate] in delegate?.controller($0, didChangeChannels: $1) },
+            controllerShouldAddNewChannelToList: { [weak delegate] in
+                delegate?.controller($0, shouldAddNewChannelToList: $1) ?? true
+            },
+            controllerShouldListUpdatedChannel: { [weak delegate] in
+                delegate?.controller($0, shouldListUpdatedChannel: $1) ?? true
+            }
         )
     }
 }

@@ -5,6 +5,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### 🔄 Changed
 
+# [4.0.3](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.3)
+_October 01, 2021_
+
+### ✅ Added
+- Events expose chat models (e.g. `channel: ChatChannel`) instead of just IDs [#1081](https://github.com/GetStream/stream-chat-swift/pull/1081)
+- SDK is now Carthage compatible [#1495](https://github.com/GetStream/stream-chat-swift/pull/1495)
+
+### 🐞 Fixed
+- Dynamic height for the composer attachment previews [#1480](https://github.com/GetStream/stream-chat-swift/pull/1480)
+- Fix `shouldAddNewChannelToList` and `shouldListUpdatedChannel` delegate funcs are not overridable in ChannelListVC subclasses [#1497](https://github.com/GetStream/stream-chat-swift/issues/1497)
+- Make messageComposerBottomConstraint public [#1501](https://github.com/GetStream/stream-chat-swift/pull/1501)
+- Fix `ChatChannelListVC` showing channels muted by the current user when default `shouldAddNewChannelToList/shouldListUpdatedChannel` delegate method implementations are used [#1476](https://github.com/GetStream/stream-chat-swift/pull/1476)
+
+# [4.0.2](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.2)
+_September 24, 2021_
+
+### ✅ Added
+- Introduce `ChannelController.uploadFile` function for uploading files to CDN to obtain a remote URL [#1468](https://github.com/GetStream/stream-chat-swift/issues/1468)
+
+### 🐞 Fixed
+- Fix channel unread counts, thread replies and silent messages do not increase the count anymore [#1472](https://github.com/GetStream/stream-chat-swift/pull/1472)
+- Fix token expiration refresh mechanism for API endpoints [#1446](https://github.com/GetStream/stream-chat-swift/pull/1446)
+- Fix keyboard handling when navigation bar or tab bar are not translucent [#1470](https://github.com/GetStream/stream-chat-swift/pull/1470) [#1464](https://github.com/GetStream/stream-chat-swift/pull/1464)
+
+### 🔄 Changed
+- Attachments types are now `Hashable` [1469](https://github.com/GetStream/stream-chat-swift/pull/1469/files)
+
+# [4.0.1](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.1)
+_September 17, 2021_
+
+### ✅ Added
+- Introduce `shouldAddNewChannelToList` and `shouldListUpdatedChannel` delegate callbacks to `ChannelListController`. With these, one can list/unlist new/updated channels to the existing controller. [#1438](https://github.com/GetStream/stream-chat-swift/issues/1438) [#1460](https://github.com/GetStream/stream-chat-swift/issues/1460)
+- Added injection of `ChatMessageReactionsBubbleView` to `Components`, so customers will be able to subclass and customise it. [#1451](https://github.com/GetStream/stream-chat-swift/pull/1451)
+- Add delegate func for tap on user avatar for a message [#1453](https://github.com/GetStream/stream-chat-swift/issues/1453)
+
+### 🐞 Fixed
+- `CurrentUser.currentDevice` is always `nil`. Now it won't be nil after `addDevice` is called [#1457](https://github.com/GetStream/stream-chat-swift/issues/1457)
+
+### 🔄 Changed
+- Update `ChatClient` to disconnect immediately when the Internet connection disappears [#1449](https://github.com/GetStream/stream-chat-swift/issues/1449)
+- `NewChannelQueryUpdater`, which takes care of listing/unlisting new/updated channels, is disabled. We recommend using the new `ChannelListController` delegate methods `shouldAddNewChannelToList` and `shouldListUpdatedChannel` [#1460](https://github.com/GetStream/stream-chat-swift/issues/1460)
+
+### 🐞 Fixed
+- Fix message list wrong content inset when typing events disabled [#1455](https://github.com/GetStream/stream-chat-swift/pull/1455)
+- Fix message list unwanted scrolling when typing indicator shown [#1456](https://github.com/GetStream/stream-chat-swift/pull/1456)
+- Fix typing events always disabled when channel opened without cache from Channel List [#1458](https://github.com/GetStream/stream-chat-swift/pull/1458)
+- Fix hypens (-) are not allowed in custom channel types [#1461](https://github.com/GetStream/stream-chat-swift/issues/1461)
+
+# [4.0.0](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0)
+_September 10, 2021_
+
+### 🔄 Changed
+
 # [4.0.0-RC.1](https://github.com/GetStream/stream-chat-swift/releases/tag/4.0.0-RC.1)
 _September 09, 2021_
 

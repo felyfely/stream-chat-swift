@@ -17,13 +17,13 @@ public struct VideoAttachmentPayload: AttachmentPayload {
     public static let type: AttachmentType = .video
 
     /// A title, usually the name of the video.
-    public let title: String?
+    public var title: String?
     /// A link to the video.
-    public internal(set) var videoURL: URL
+    public var videoURL: URL
     /// The video itself.
-    public let file: AttachmentFile
+    public var file: AttachmentFile
     /// An extra data.
-    let extraData: [String: RawJSON]?
+    public var extraData: [String: RawJSON]?
     
     /// Decodes extra data as an instance of the given type.
     /// - Parameter ofType: The type an extra data should be decoded as.
@@ -33,9 +33,19 @@ public struct VideoAttachmentPayload: AttachmentPayload {
             .flatMap { try? JSONEncoder.stream.encode($0) }
             .flatMap { try? JSONDecoder.stream.decode(T.self, from: $0) }
     }
+    
+    /// Creates `VideoAttachmentPayload` instance.
+    ///
+    /// Use this initializer if the attachment is already uploaded and you have the remote URLs.
+    public init(title: String?, videoRemoteURL: URL, file: AttachmentFile, extraData: [String: RawJSON]?) {
+        self.title = title
+        videoURL = videoRemoteURL
+        self.file = file
+        self.extraData = extraData
+    }
 }
 
-extension VideoAttachmentPayload: Equatable {}
+extension VideoAttachmentPayload: Hashable {}
 
 // MARK: - Encodable
 
@@ -58,7 +68,7 @@ extension VideoAttachmentPayload: Decodable {
         
         self.init(
             title: try container.decodeIfPresent(String.self, forKey: .title),
-            videoURL: try container.decode(URL.self, forKey: .assetURL),
+            videoRemoteURL: try container.decode(URL.self, forKey: .assetURL),
             file: try AttachmentFile(from: decoder),
             extraData: try Self.decodeExtraData(from: decoder)
         )

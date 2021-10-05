@@ -18,7 +18,7 @@ class DatabaseContainerMock: DatabaseContainer {
     @Atomic var resetEphemeralValues_called = false
     
     /// If set to `true` and the mock will remove its database files once deinited.
-    private var shouldCleanUpTempDBFiles = false
+    var shouldCleanUpTempDBFiles = false
     
     convenience init(localCachingSettings: ChatClientConfig.LocalCaching? = nil) {
         try! self.init(kind: .onDisk(databaseFileURL: .newTemporaryFileURL()), localCachingSettings: localCachingSettings)
@@ -142,13 +142,11 @@ extension DatabaseContainer {
         withQuery: Bool = false,
         hiddenAt: Date? = nil,
         channelReads: Set<ChannelReadDTO> = [],
-        needsRefreshQueries: Bool = true,
         channelExtraData: [String: RawJSON] = [:]
     ) throws {
         try writeSynchronously { session in
             let dto = try session.saveChannel(payload: XCTestCase().dummyPayload(with: cid, channelExtraData: channelExtraData))
 
-            dto.needsRefreshQueries = needsRefreshQueries
             dto.hiddenAt = hiddenAt
             dto.reads = channelReads
             // Delete possible messages from the payload if `withMessages` is false
