@@ -269,9 +269,16 @@ extension ChannelDTO {
         if let filterV = query.filter.value as? [Filter<ChannelListFilterScope>],
            let waitingForFilter = filterV.first(where: { filt in
                 filt.key == "waiting_for_user_id"
-            }),
-           let waitingId = waitingForFilter.value as? String {
-            optPredicate = NSPredicate(format: "waitingForUserId == %@", waitingId)
+           }) {
+            optPredicate = NSPredicate(format: waitingForFilter.description.replacingOccurrences(of: "waiting_for_user_id", with: "waitingForUserId"))
+        }
+
+        var emptyMessagesPredicate: NSPredicate?
+        if let filterV = query.filter.value as? [Filter<ChannelListFilterScope>],
+           let waitingForFilter = filterV.first(where: { filt in
+                filt.key == "last_message_at"
+           }) {
+            emptyMessagesPredicate = NSPredicate(format: waitingForFilter.description.replacingOccurrences(of: "last_message_at", with: "lastMessageAt"))
         }
 
         let notHidden = NSCompoundPredicate(orPredicateWithSubpredicates: [
@@ -287,6 +294,9 @@ extension ChannelDTO {
         ]
         if let pre = optPredicate {
             subpredicates.append(pre)
+        }
+        if let emptyPre = emptyMessagesPredicate {
+            subpredicates.append(emptyPre)
         }
         request.predicate = NSCompoundPredicate(type: .and, subpredicates: subpredicates)
         return request
