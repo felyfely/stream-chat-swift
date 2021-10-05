@@ -17,13 +17,13 @@ public struct FileAttachmentPayload: AttachmentPayload {
     public static let type: AttachmentType = .file
 
     /// A title, usually the name of the file.
-    public let title: String?
+    public var title: String?
     /// A link to the file.
-    public internal(set) var assetURL: URL
+    public var assetURL: URL
     /// The file itself.
-    public let file: AttachmentFile
+    public var file: AttachmentFile
     /// An extra data.
-    let extraData: [String: RawJSON]?
+    public var extraData: [String: RawJSON]?
     
     /// Decodes extra data as an instance of the given type.
     /// - Parameter ofType: The type an extra data should be decoded as.
@@ -33,9 +33,19 @@ public struct FileAttachmentPayload: AttachmentPayload {
             .flatMap { try? JSONEncoder.stream.encode($0) }
             .flatMap { try? JSONDecoder.stream.decode(T.self, from: $0) }
     }
+    
+    /// Creates `FileAttachmentPayload` instance.
+    ///
+    /// Use this initializer if the attachment is already uploaded and you have the remote URLs.
+    public init(title: String?, assetRemoteURL: URL, file: AttachmentFile, extraData: [String: RawJSON]?) {
+        self.title = title
+        assetURL = assetRemoteURL
+        self.file = file
+        self.extraData = extraData
+    }
 }
 
-extension FileAttachmentPayload: Equatable {}
+extension FileAttachmentPayload: Hashable {}
 
 // MARK: - Encodable
 
@@ -58,7 +68,7 @@ extension FileAttachmentPayload: Decodable {
         
         self.init(
             title: try container.decodeIfPresent(String.self, forKey: .title),
-            assetURL: try container.decode(URL.self, forKey: .assetURL),
+            assetRemoteURL: try container.decode(URL.self, forKey: .assetURL),
             file: try AttachmentFile(from: decoder),
             extraData: try Self.decodeExtraData(from: decoder)
         )

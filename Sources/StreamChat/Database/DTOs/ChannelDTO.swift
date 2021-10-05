@@ -49,9 +49,6 @@ class ChannelDTO: NSManagedObject {
 
     // The channel list queries the channel is a part of
     @NSManaged var queries: Set<ChannelListQueryDTO>
-    // A local flag which can be used to force refreshing the queries with the backend. This is useful for example when
-    // the members of the channel change, and we want to be sure the channel still belongs to the existing queries.
-    @NSManaged var needsRefreshQueries: Bool
 
     // MARK: - Relationships
     
@@ -275,14 +272,16 @@ extension ChannelDTO {
         ])
         return request
     }
-
-    static var channelWithoutQueryFetchRequest: NSFetchRequest<ChannelDTO> {
+    
+    static func channelsFetchRequest(notLinkedTo query: ChannelListQuery) -> NSFetchRequest<ChannelDTO> {
         let request = NSFetchRequest<ChannelDTO>(entityName: ChannelDTO.entityName)
         request.sortDescriptors = [ChannelListSortingKey.defaultSortDescriptor]
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "queries.@count == 0"),
-            NSPredicate(format: "needsRefreshQueries == YES")
-        ])
+        // Channels which are not linked to this query
+        request.predicate = NSCompoundPredicate(
+            notPredicateWithSubpredicate: NSPredicate(
+                format: "ANY queries.filterHash == %@", query.filter.filterHash
+            )
+        )
         return request
     }
 }

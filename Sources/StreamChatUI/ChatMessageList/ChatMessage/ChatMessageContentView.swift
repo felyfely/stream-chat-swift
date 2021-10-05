@@ -24,6 +24,11 @@ public protocol ChatMessageContentViewDelegate: AnyObject {
     /// - Parameter indexPath: The index path of the cell displaying the content view. Equals to `nil` when
     /// the content view is displayed outside the collection/table view.
     func messageContentViewDidTapOnQuotedMessage(_ indexPath: IndexPath?)
+	
+    /// Gets called when avatar view is tapped.
+    /// - Parameter indexPath: The index path of the cell displaying the content view. Equals to `nil` when
+    /// the content view is displayed outside the collection/table view.
+    func messageContentViewDidTapOnAvatarView(_ indexPath: IndexPath?)
 }
 
 /// A view that displays the message content.
@@ -107,7 +112,7 @@ open class ChatMessageContentView: _View, ThemeProvider {
 
     /// Shows the bubble around message reactions.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.reactions`.
-    public private(set) var reactionsBubbleView: ChatReactionsBubbleView?
+    public private(set) var reactionsBubbleView: ChatReactionBubbleBaseView?
 
     /// Shows the # of thread replies on the message.
     /// Exists if `layout(options: MessageLayoutOptions)` was invoked with the options containing `.threadInfo`.
@@ -560,6 +565,11 @@ open class ChatMessageContentView: _View, ThemeProvider {
         delegate?.messageContentViewDidTapOnQuotedMessage(indexPath?())
     }
 
+    /// Handles tap on `avatarView` and forwards the action to the delegate.
+    @objc open func handleTapOnAvatarView() {
+        delegate?.messageContentViewDidTapOnAvatarView(indexPath?())
+    }
+	
     // MARK: - Setups
 
     /// Instantiates, configures and assigns `textView` when called for the first time.
@@ -588,6 +598,7 @@ open class ChatMessageContentView: _View, ThemeProvider {
                 .init()
                 .withoutAutoresizingMaskConstraints
         }
+        authorAvatarView?.addTarget(self, action: #selector(handleTapOnAvatarView), for: .touchUpInside)
         return authorAvatarView!
     }
 
@@ -667,7 +678,7 @@ open class ChatMessageContentView: _View, ThemeProvider {
     open func createReactionsView() -> ChatMessageReactionsView {
         if reactionsView == nil {
             reactionsView = components
-                .reactionsView
+                .messageReactionsView
                 .init()
                 .withoutAutoresizingMaskConstraints
         }
@@ -700,11 +711,9 @@ open class ChatMessageContentView: _View, ThemeProvider {
 
     /// Instantiates, configures and assigns `reactionsBubbleView` when called for the first time.
     /// - Returns: The `reactionsBubbleView` subview.
-    open func createReactionsBubbleView() -> ChatReactionsBubbleView {
+    open func createReactionsBubbleView() -> ChatReactionBubbleBaseView {
         if reactionsBubbleView == nil {
-            // TODO: view type should be taken from `components` once `_ReactionsBubbleView` is audited
-            reactionsBubbleView = ChatReactionsBubbleView()
-                .withoutAutoresizingMaskConstraints
+            reactionsBubbleView = components.messageReactionsBubbleView.init().withoutAutoresizingMaskConstraints
         }
         return reactionsBubbleView!
     }

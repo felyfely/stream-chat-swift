@@ -272,17 +272,34 @@ public class ChatChannelController: DataController, DelegateCallable, DataStoreP
     }
 
     private func setChannelObserver() {
-        _channelObserver.computeValue = { [unowned self] in
-            guard let cid = self.cid else { return nil }
+        _channelObserver.computeValue = { [weak self] in
+            guard let self = self else {
+                log.warning("Callback called while self is nil")
+                return nil
+            }
+
+            guard let cid = self.cid else {
+                return nil
+            }
             let observer = EntityDatabaseObserver(
                 context: self.client.databaseContainer.viewContext,
                 fetchRequest: ChannelDTO.fetchRequest(for: cid),
                 itemCreator: { $0.asModel() as ChatChannel }
-            ).onChange { change in
-                self.delegateCallback { $0.channelController(self, didUpdateChannel: change) }
+            ).onChange { [weak self] change in
+                self?.delegateCallback { [weak self] in
+                    guard let self = self else {
+                        log.warning("Callback called while self is nil")
+                        return
+                    }
+                    $0.channelController(self, didUpdateChannel: change)
+                }
             }
-            .onFieldChange(\.currentlyTypingUsers) { change in
-                self.delegateCallback {
+            .onFieldChange(\.currentlyTypingUsers) { [weak self] change in
+                self?.delegateCallback { [weak self] in
+                    guard let self = self else {
+                        log.warning("Callback called while self is nil")
+                        return
+                    }
                     $0.channelController(self, didChangeTypingUsers: change.item)
                 }
             }
@@ -292,11 +309,19 @@ public class ChatChannelController: DataController, DelegateCallable, DataStoreP
     }
 
     private func setMessagesObserver() {
-        _messagesObserver.computeValue = { [unowned self] in
+        _messagesObserver.computeValue = { [weak self] in
+            guard let self = self else {
+                log.warning("Callback called while self is nil")
+                return nil
+            }
             guard let cid = self.cid else { return nil }
             let sortAscending = self.messageOrdering == .topToBottom ? false : true
             var deletedMessageVisibility: ChatClientConfig.DeletedMessageVisibility?
-            self.client.databaseContainer.viewContext.performAndWait {
+            self.client.databaseContainer.viewContext.performAndWait { [weak self] in
+                guard let self = self else {
+                    log.warning("Callback called while self is nil")
+                    return
+                }
                 deletedMessageVisibility = self.client.databaseContainer.viewContext.deletedMessagesVisibility
             }
 
@@ -309,8 +334,12 @@ public class ChatChannelController: DataController, DelegateCallable, DataStoreP
                 ),
                 itemCreator: { $0.asModel() as ChatMessage }
             )
-            observer.onChange = { changes in
-                self.delegateCallback {
+            observer.onChange = { [weak self] changes in
+                self?.delegateCallback { [weak self] in
+                    guard let self = self else {
+                        log.warning("Callback called while self is nil")
+                        return
+                    }
                     $0.channelController(self, didUpdateMessages: changes)
                 }
             }
@@ -408,8 +437,12 @@ public class ChatChannelController: DataController, DelegateCallable, DataStoreP
         guard let webSocketClient = client.webSocketClient else { return }
         let center = webSocketClient.eventNotificationCenter
         eventObservers = [
-            MemberEventObserver(notificationCenter: center, cid: cid) { [unowned self] event in
-                self.delegateCallback {
+            MemberEventObserver(notificationCenter: center, cid: cid) { [weak self] event in
+                self?.delegateCallback { [weak self] in
+                    guard let self = self else {
+                        log.warning("Callback called while self is nil")
+                        return
+                    }
                     $0.channelController(self, didReceiveMemberEvent: event)
                 }
             }
@@ -1099,6 +1132,56 @@ public extension ChatChannelController {
         updater.freezeChannel(false, cid: cid) { error in
             self.callback {
                 completion?(error)
+            }
+        }
+    }
+    
+    /// Uploads the given file to CDN and returns the file URL.
+    /// - Parameters:
+    ///   - localFileURL: Local URL of the file.
+    ///   - progress: Upload progress callback
+    ///   - completion: Completion to be called when upload finishes, or errors.  Will be called on a **callbackQueue** when the network request is finished.
+    func uploadFile(
+        localFileURL: URL,
+        progress: ((Double) -> Void)? = nil,
+        completion: @escaping ((Result<URL, Error>) -> Void)
+    ) {
+        /// Perform action only if channel is already created on backend side and have a valid `cid`.
+        guard let cid = cid, isChannelAlreadyCreated else {
+            channelModificationFailed { error in
+                completion(.failure(error ?? ClientError.ChannelNotCreatedYet()))
+            }
+            return
+        }
+        
+        updater.uploadFile(type: .file, localFileURL: localFileURL, cid: cid, progress: progress) { result in
+            self.callback {
+                completion(result)
+            }
+        }
+    }
+    
+    /// Uploads the given image to CDN and returns the file URL.
+    /// - Parameters:
+    ///   - localFileURL: Local URL of the image.
+    ///   - progress: Upload progress callback
+    ///   - completion: Completion to be called when upload finishes, or errors.  Will be called on a **callbackQueue** when the network request is finished.
+    func uploadImage(
+        localFileURL: URL,
+        progress: ((Double) -> Void)? = nil,
+        completion: @escaping ((Result<URL, Error>) -> Void)
+    ) {
+        /// Perform action only if channel is already created on backend side and have a valid `cid`.
+        guard let cid = cid, isChannelAlreadyCreated else {
+            channelModificationFailed { error in
+                completion(.failure(error ?? ClientError.ChannelNotCreatedYet()))
+            }
+            return
+        }
+        
+        updater.uploadFile(type: .image, localFileURL: localFileURL, cid: cid, progress: progress) { result in
+            self.callback {
+                completion(result)
             }
         }
     }

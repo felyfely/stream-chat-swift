@@ -10,8 +10,8 @@
     {
       "Customization": [
         "customization/theming",
-        "customization/localization",
-        "customization/custom-components"
+        "customization/custom-components",
+        "customization/localization"
       ]
     },
     {
@@ -20,7 +20,8 @@
         "controllers/connection",
         "controllers/channels",
         "controllers/users",
-        "controllers/messages"
+        "controllers/messages",
+        "controllers/events"
       ]
     },
     {
@@ -36,9 +37,9 @@
     {
       "Core Components": [
         "components/channel-list",
-        "components/message-list",
+        "components/channel",
+        "components/thread",
         "components/message",
-        "components/message-thread",
         "components/message-composer"
       ]
     },
@@ -48,7 +49,8 @@
         "components/channel-header-view",
         "components/thread-header-view",
         "components/message-layout-options-resolver",
-        "components/avatar"
+        "components/avatar",
+        "components/reactions"
       ]
     },
     {

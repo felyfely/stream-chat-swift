@@ -55,7 +55,7 @@ open class ChatChannelVC:
         .channelAvatarView.init()
         .withoutAutoresizingMaskConstraints
 
-    private var messageComposerBottomConstraint: NSLayoutConstraint?
+    public var messageComposerBottomConstraint: NSLayoutConstraint?
 
     @Atomic private var loadingPreviousMessages: Bool = false
 
@@ -69,7 +69,7 @@ open class ChatChannelVC:
         messageComposerVC.channelController = channelController
         messageComposerVC.userSearchController = userSuggestionSearchController
 
-        channelController.setDelegate(self)
+        channelController.delegate = self
         channelController.synchronize { [weak self] _ in
             self?.messageComposerVC.updateContent()
         }
